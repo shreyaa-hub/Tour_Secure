@@ -36,14 +36,10 @@ function Login({ onSwitch }: { onSwitch: () => void }) {
       // Back to the page that required login; otherwise admins land on their dashboard.
       const to =
         (loc.state as any)?.from?.pathname ||
-        (data?.user?.role === "admin" ? "/admin" : "/digital-id");
+        (data?.user?.role === "admin" ? "/admin" : "/");
       nav(to, { replace: true });
     } catch (e: any) {
-      const msg =
-        e?.response?.data?.error ||
-        (e?.response?.status === 404 ? "Endpoint not found (check VITE_API_BASE and path)" : null) ||
-        e?.message ||
-        "Login failed";
+      const msg = authErrorMessage(e, "Couldn't sign you in. Please try again.");
       notify({ tone: "error", message: msg });
     } finally {
       setBusy(false);
@@ -86,16 +82,6 @@ function Login({ onSwitch }: { onSwitch: () => void }) {
             </button>
           </div>
 
-          <div className="mt-4 grid grid-cols-2 gap-2">
-            <RoleHint
-              title="Sign in as User"
-              text="Access your e-FIR and Itinerary; share Reviews & view Heatmap."
-            />
-            <RoleHint
-              title="Sign in as Admin"
-              text="View all e-FIRs and SOS alerts; coordinate response."
-            />
-          </div>
         </CardBody>
       </Card>
     </div>
@@ -120,14 +106,10 @@ function Signup({ onSwitch }: { onSwitch: () => void }) {
       // New accounts are always role "user"; admins are promoted server-side (npm run seed:demo).
       await api.post("/auth/register", { name, email, password });
       await refresh();
-      const to = (loc.state as any)?.from?.pathname || "/digital-id";
+      const to = (loc.state as any)?.from?.pathname || "/";
       nav(to, { replace: true });
     } catch (e: any) {
-      const msg =
-        e?.response?.data?.error ||
-        (e?.response?.status === 404 ? "Endpoint not found (check VITE_API_BASE and path)" : null) ||
-        e?.message ||
-        "Sign-up failed";
+      const msg = authErrorMessage(e, "Couldn't create your account. Please try again.");
       notify({ tone: "error", message: msg });
     } finally {
       setBusy(false);
@@ -179,11 +161,11 @@ function Signup({ onSwitch }: { onSwitch: () => void }) {
   );
 }
 
-function RoleHint({ title, text }: { title: string; text: string }) {
-  return (
-    <div className="rounded-xl border p-3 bg-white">
-      <div className="font-semibold">{title}</div>
-      <div className="text-xs text-neutral-600 mt-1">{text}</div>
-    </div>
-  );
+function authErrorMessage(e: any, fallback: string) {
+  if (!e?.response) return "Can't reach the server. Check your connection and try again.";
+  const err = e.response.data?.error;
+  if (err === "Invalid credentials") return "Wrong email or password.";
+  if (err === "Email already registered") return "An account with this email already exists. Try signing in.";
+  if (err === "Missing fields") return "Please fill in all fields.";
+  return fallback;
 }

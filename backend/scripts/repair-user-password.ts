@@ -34,7 +34,7 @@ async function main() {
     // @ts-ignore
     user.password = hash;
     await user.save();
-    console.log("✅ Password set for", email);
+    console.log("Password set for", email);
   }
 
   await mongoose.disconnect();
@@ -42,6 +42,6 @@ async function main() {
 }
 
 main().catch((e) => {
-  console.error("❌", e);
+  console.error(e);
   process.exit(1);
 });

@@ -107,7 +107,7 @@ r.post("/login", async (req, res) => {
 
     const normEmail = String(email).toLowerCase().trim();
 
-    // IMPORTANT: Select the password even if schema has select:false
+    // Select the password even if schema has select:false
     const user = await User.findOne({ email: normEmail }).select("+password").lean();
 
     if (!user) {

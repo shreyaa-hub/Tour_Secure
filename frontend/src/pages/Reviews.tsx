@@ -20,7 +20,7 @@ type Review = {
   rating: number;          // 1..5
   comment?: string;
   createdAt: string;
-  userName?: string | null; // NEW: author display name
+  userName?: string | null; // author display name
 };
 
 /* ---------- helpers (normalize API → UI) ---------- */
@@ -49,7 +49,7 @@ function toReviewUI(raw: any): Review | null {
 
   const rating = Number(raw.rating ?? raw.value ?? raw.stars);
 
-  // NEW: prefer backend's denormalized userName; fall back to nested user object if present
+  // prefer backend's denormalized userName; fall back to nested user object if present
   const userName: string | null =
     (typeof raw.userName === "string" && raw.userName) ||
     (raw.user && (raw.user.name || raw.user.email)) ||
@@ -69,7 +69,7 @@ function toReviewUI(raw: any): Review | null {
 
 /* ---------- api helpers ---------- */
 async function fetchReviews(): Promise<Review[]> {
-  // IMPORTANT: baseURL already has /api, so use "/reviews"
+  // baseURL already has /api, so use "/reviews"
   const { data } = await http.get("/reviews");
 
   const list = Array.isArray(data)
@@ -88,7 +88,7 @@ async function fetchReviews(): Promise<Review[]> {
 }
 
 async function createReview(input: { place: string; rating: number; comment?: string }) {
-  // IMPORTANT: baseURL already has /api, so use "/reviews"
+  // baseURL already has /api, so use "/reviews"
   const { data } = await http.post("/reviews", {
     areaName: input.place,
     rating: input.rating,
@@ -179,7 +179,7 @@ export default function Reviews() {
         if (!alive) return;
         setItems(list);
       } catch (e: any) {
-        notify({ tone: "error", message: e?.message ?? "Failed to load reviews" });
+        notify({ tone: "error", message: "Couldn't load reviews." });
       } finally {
         if (alive) setLoading(false);
       }
@@ -205,12 +205,12 @@ export default function Reviews() {
     e.preventDefault();
 
     if (!user) {
-      notify({ tone: "warning", message: "Please login to submit a review." });
+      notify({ tone: "warning", message: "Please log in to write a review." });
       return;
     }
 
     if (!place.trim()) {
-      notify({ tone: "warning", message: "Place is required." });
+      notify({ tone: "warning", message: "Enter the place you are reviewing." });
       return;
     }
     try {
@@ -231,15 +231,15 @@ export default function Reviews() {
       setPage(1);
       notify({
         tone: "success",
-        title: "Thanks! Your review has been added.",
+        title: "Thanks for your review",
         message: area
           ? area.previous_safety_score != null && area.previous_safety_score !== area.safety_score
             ? `${area.name} safety score: ${area.previous_safety_score} → ${area.safety_score}/100`
             : `${area.name} safety score: ${area.safety_score}/100`
-          : `"${place.trim()}" isn't a known area yet, so no safety score changed.`,
+          : `We don't have safety data for "${place.trim()}" yet, so no score changed.`,
       });
     } catch (e: any) {
-      const msg = e?.response?.data?.error || e?.message || "Failed to submit review";
+      const msg = e?.response?.data?.error || "Couldn't post your review. Please try again.";
       notify({ tone: "error", message: msg });
     } finally {
       setSubmitting(false);
@@ -253,11 +253,11 @@ export default function Reviews() {
       <div className="grid gap-6 md:grid-cols-3 mt-6">
         {/* form */}
         <Card className="md:col-span-1">
-          <CardHeader title="Add Review" />
+          <CardHeader title="Write a review" />
           <CardBody>
             <form onSubmit={onSubmit} className="space-y-4">
               <Input
-                placeholder="Place"
+                placeholder="Place, e.g. T Nagar or Shillong"
                 value={place}
                 onChange={(e) => setPlace(e.target.value)}
                 required
@@ -269,18 +269,18 @@ export default function Reviews() {
               </div>
 
               <Textarea
-                placeholder="Comment (optional)"
+                placeholder="How safe did it feel? (optional)"
                 value={comment}
                 onChange={(e) => setComment(e.target.value)}
               />
 
               <Button type="submit" disabled={submitting || !user}>
-                {submitting ? "Submitting…" : user ? "Submit" : "Login to submit"}
+                {submitting ? "Submitting…" : user ? "Post review" : "Log in to review"}
               </Button>
 
               {!user && (
                 <div className="text-xs text-neutral-500">
-                  You must be logged in to post a review.
+                  Log in to share how safe a place felt.
                 </div>
               )}
             </form>
@@ -289,13 +289,13 @@ export default function Reviews() {
 
         {/* list + filters */}
         <Card className="md:col-span-2">
-          <CardHeader title="Recent Reviews" />
+          <CardHeader title="Recent reviews" />
           <CardBody>
             {/* filters */}
             <div className="flex flex-wrap items-center gap-3 mb-4">
               <Input
                 className="w-56"
-                placeholder="Search place or text…"
+                placeholder="Filter reviews"
                 value={search}
                 onChange={(e) => {
                   setSearch(e.target.value);
@@ -310,11 +310,10 @@ export default function Reviews() {
                 }}
               >
                 <option value="0">All ratings</option>
-                <option value="5">5★ only</option>
-                <option value="4">≥ 4★</option>
-                <option value="3">≥ 3★</option>
-                <option value="2">≥ 2★</option>
-                <option value="1">≥ 1★</option>
+                <option value="5">5 stars</option>
+                <option value="4">4 stars & up</option>
+                <option value="3">3 stars & up</option>
+                <option value="2">2 stars & up</option>
               </Select>
             </div>
 
@@ -322,7 +321,7 @@ export default function Reviews() {
               <Loading />
             ) : filtered.length === 0 ? (
               <div className="text-sm text-neutral-600">
-                {items && items.length > 0 ? "No reviews match your search or rating filter." : "No reviews yet."}
+                {items && items.length > 0 ? "No reviews match your filters." : "No reviews yet."}
               </div>
             ) : (
               <>
@@ -333,7 +332,7 @@ export default function Reviews() {
                         <div className="min-w-0">
                           <div className="font-semibold truncate">{r.place || "—"}</div>
                           <div className="text-xs text-neutral-500">
-                            {/* NEW: show author name if present */}
+                            {/* show author name if present */}
                             {r.userName ? (
                               <>
                                 by <span className="font-medium">{r.userName}</span> ·{" "}

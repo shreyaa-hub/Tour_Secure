@@ -87,10 +87,10 @@ export default function DigitalIDPage() {
         const msg =
           e?.response?.data?.error ||
           e?.message ||
-          "Failed to load Digital ID";
+          "Couldn't load your trip ID.";
         if (status === 401) {
           // session missing/invalid -> send to login
-          notify({ tone: "error", message: "Please sign in to view Digital ID." });
+          notify({ tone: "error", message: "Please log in to see your trip ID." });
           nav("/login", { replace: true, state: { from: { pathname: "/digital-id" } } });
           return;
         }
@@ -117,9 +117,9 @@ export default function DigitalIDPage() {
         endAt: new Date(endAtLocal).toISOString(),
       });
       setDigitalId(created);
-      notify({ tone: "success", title: "Digital ID created", message: "QR generated and time-bound." });
+      notify({ tone: "success", title: "Trip ID created", message: "Your QR code is ready." });
     } catch (e: any) {
-      const msg = e?.response?.data?.error || e?.message || "Failed to create";
+      const msg = e?.response?.data?.error || "Couldn't create your trip ID.";
       notify({ tone: "error", message: msg });
     } finally {
       setBusy(false);
@@ -133,9 +133,9 @@ export default function DigitalIDPage() {
       await revokeMyDigitalId();
       const cur = await getMyDigitalId();
       setDigitalId(cur);
-      notify({ tone: "success", message: "Digital ID revoked." });
+      notify({ tone: "success", message: "Your trip ID has been revoked." });
     } catch (e: any) {
-      const msg = e?.response?.data?.error || e?.message || "Failed to revoke";
+      const msg = e?.response?.data?.error || "Couldn't revoke your trip ID.";
       notify({ tone: "error", message: msg });
     } finally {
       setBusy(false);
@@ -148,9 +148,9 @@ export default function DigitalIDPage() {
     try {
       const updated = await refreshQr(digitalId.id);
       setDigitalId(updated);
-      notify({ tone: "success", message: "QR refreshed." });
+      notify({ tone: "success", message: "Here is your QR code." });
     } catch (e: any) {
-      const msg = e?.response?.data?.error || e?.message || "Failed to refresh QR";
+      const msg = e?.response?.data?.error || "Couldn't show your QR code.";
       notify({ tone: "error", message: msg });
     } finally {
       setBusy(false);
@@ -164,9 +164,9 @@ export default function DigitalIDPage() {
     try {
       const updated = await extendTrip(digitalId.id, new Date(newEndAtLocal).toISOString());
       setDigitalId(updated);
-      notify({ tone: "success", message: "Trip extended & QR updated." });
+      notify({ tone: "success", message: "Trip extended. Your QR code has been updated." });
     } catch (e: any) {
-      const msg = e?.response?.data?.error || e?.message || "Failed to extend trip";
+      const msg = e?.response?.data?.error || "Couldn't extend your trip.";
       notify({ tone: "error", message: msg });
     } finally {
       setBusy(false);
@@ -179,9 +179,9 @@ export default function DigitalIDPage() {
     try {
       const updated = await uploadDocument(digitalId.id, file);
       setDigitalId(updated);
-      notify({ tone: "success", message: "Document uploaded." });
+      notify({ tone: "success", message: "Your ID copy was uploaded." });
     } catch (e: any) {
-      const msg = e?.response?.data?.error || e?.message || "Upload failed";
+      const msg = e?.response?.data?.error || "Couldn't upload the file.";
       notify({ tone: "error", message: msg });
     } finally {
       setBusy(false);
@@ -202,7 +202,7 @@ export default function DigitalIDPage() {
     // Guard fallback (should rarely hit if router guard is in place)
     return (
       <div className="min-h-[50vh] grid place-items-center">
-        <div className="text-sm text-neutral-600">Please sign in to access Digital ID.</div>
+        <div className="text-sm text-neutral-600">Please log in to see your trip ID.</div>
       </div>
     );
   }
@@ -210,39 +210,42 @@ export default function DigitalIDPage() {
   return (
     <>
       <h1 className="page-title">Digital ID</h1>
+      <p className="mt-1 text-sm text-neutral-600">
+        Register your trip to get a QR code that officials can scan to confirm your visit. It expires when your trip ends.
+      </p>
 
       <div className="grid gap-6 md:grid-cols-2 mt-6">
         {/* Create Form */}
         <Card>
-          <CardHeader title="Create a Digital Trip ID" />
+          <CardHeader title="Register your trip" />
           <CardBody>
             <form onSubmit={onCreate} className="grid gap-4">
               <div className="grid md:grid-cols-2 gap-3">
                 <div>
-                  <div className="text-xs text-neutral-600 mb-1">Entrypoint</div>
+                  <div className="text-xs text-neutral-600 mb-1">Arriving via</div>
                   <Select value={entrypoint} onChange={(e) => setEntrypoint(e.target.value)}>
                     <option>Airport</option>
                     <option>Railway Station</option>
-                    <option>Bus Terminal</option>
-                    <option>Border</option>
+                    <option>Bus Station</option>
+                    <option>Border Crossing</option>
                     <option>Hotel</option>
-                    <option>Checkpost</option>
+                    <option>Check Post</option>
                   </Select>
                 </div>
                 <div>
-                  <div className="text-xs text-neutral-600 mb-1">Document Type</div>
+                  <div className="text-xs text-neutral-600 mb-1">ID document</div>
                   <Select value={docType} onChange={(e) => setDocType(e.target.value)}>
                     <option>Passport</option>
                     <option>Aadhaar</option>
                     <option>Driver’s License</option>
-                    <option>Govt ID</option>
+                    <option>Other Government ID</option>
                   </Select>
                 </div>
               </div>
 
               <div className="grid md:grid-cols-2 gap-3">
                 <div>
-                  <div className="text-xs text-neutral-600 mb-1">Start (local)</div>
+                  <div className="text-xs text-neutral-600 mb-1">Trip starts</div>
                   <Input
                     type="datetime-local"
                     value={startAtLocal}
@@ -250,7 +253,7 @@ export default function DigitalIDPage() {
                   />
                 </div>
                 <div>
-                  <div className="text-xs text-neutral-600 mb-1">End (local)</div>
+                  <div className="text-xs text-neutral-600 mb-1">Trip ends</div>
                   <Input
                     type="datetime-local"
                     value={endAtLocal}
@@ -260,16 +263,16 @@ export default function DigitalIDPage() {
               </div>
 
               <div className="text-xs text-neutral-600">
-                Wallet address is assigned automatically to your account. The QR is valid only between Start and End.
+                Your QR code works only between the start and end of your trip.
               </div>
 
               <div className="flex gap-2">
                 <Button type="submit" disabled={busy}>
-                  {busy ? "Creating…" : "Create Digital ID"}
+                  {busy ? "Creating…" : "Create trip ID"}
                 </Button>
                 {digitalId?.status === "active" && (
                   <Button variant="outline" type="button" disabled={busy} onClick={onRevoke}>
-                    Revoke
+                    Revoke trip ID
                   </Button>
                 )}
               </div>
@@ -279,42 +282,39 @@ export default function DigitalIDPage() {
 
         {/* Current DID */}
         <Card>
-          <CardHeader title="Your Digital ID" />
+          <CardHeader title="Your trip ID" />
           <CardBody>
             {!digitalId ? (
               <div className="text-sm text-neutral-600">
-                No Digital ID yet. Create one on the left.
+                You haven't registered a trip yet. Fill in the form to get your QR code.
               </div>
             ) : (
               <div className="grid gap-3">
                 <div className="text-sm grid gap-1">
                   <div>
-                    <span className="text-neutral-500">Status:</span> {digitalId.status}
+                    <span className="text-neutral-500">Status:</span>{" "}
+                    {digitalId.status.charAt(0).toUpperCase() + digitalId.status.slice(1)}
                   </div>
                   <div>
                     <span className="text-neutral-500">Valid:</span>{" "}
                     {new Date(digitalId.startAt).toLocaleString()} →{" "}
                     {new Date(digitalId.endAt).toLocaleString()}
                   </div>
-                  <div>
-                    <span className="text-neutral-500">Wallet:</span> {digitalId.walletAddress}
-                  </div>
                   {digitalId.entrypoint && (
                     <div>
-                      <span className="text-neutral-500">Entrypoint:</span>{" "}
+                      <span className="text-neutral-500">Arriving via:</span>{" "}
                       {digitalId.entrypoint}
                     </div>
                   )}
                   {digitalId.docType && (
                     <div>
-                      <span className="text-neutral-500">Doc Type:</span>{" "}
+                      <span className="text-neutral-500">ID document:</span>{" "}
                       {digitalId.docType}
                     </div>
                   )}
                   {digitalId.docFilePath && (
                     <div>
-                      <span className="text-neutral-500">Document:</span>{" "}
-                      {digitalId.docFilePath}
+                      <span className="text-neutral-500">Document copy:</span> Uploaded
                     </div>
                   )}
                 </div>
@@ -324,23 +324,25 @@ export default function DigitalIDPage() {
                   <div className="mt-2">
                     <img
                       src={digitalId.qr.dataUrl}
-                      alt="Digital ID QR"
+                      alt="Trip ID QR code"
                       className="w-56 h-56 border rounded-lg bg-white"
                     />
                     <div className="text-xs text-neutral-500 mt-2">
-                      QR expires at {new Date(digitalId.qr.expiresAt).toLocaleString()}
+                      Valid until {new Date(digitalId.qr.expiresAt).toLocaleString()}
                     </div>
                     <div className="text-xs">
                       <a className="underline" href={digitalId.qr.verifyUrl} target="_blank" rel="noreferrer">
-                        Open verification URL
+                        Open verification link
                       </a>
                     </div>
                   </div>
                 ) : (
                   <div className="text-sm text-neutral-600">
                     {digitalId.status !== "active"
-                      ? "Digital ID is not active."
-                      : "QR not available (outside the validity window). Refresh QR if needed."}
+                      ? `This trip ID has been ${digitalId.status}. Create a new one to get a QR code.`
+                      : !activeWindow
+                      ? "Your QR code will appear once your trip starts."
+                      : "Click \"Show QR code\" to display your code."}
                   </div>
                 )}
 
@@ -348,13 +350,13 @@ export default function DigitalIDPage() {
                 <div className="mt-3 grid gap-3">
                   <div className="flex gap-2">
                     <Button variant="outline" disabled={busy || !digitalId} onClick={onRefreshQr}>
-                      Refresh QR
+                      Show QR code
                     </Button>
                   </div>
 
                   <form onSubmit={onExtend} className="flex items-end gap-2">
                     <div className="flex-1">
-                      <div className="text-xs text-neutral-600 mb-1">Extend End (local)</div>
+                      <div className="text-xs text-neutral-600 mb-1">New end date</div>
                       <Input
                         type="datetime-local"
                         value={newEndAtLocal}
@@ -362,14 +364,14 @@ export default function DigitalIDPage() {
                       />
                     </div>
                     <Button type="submit" variant="outline" disabled={busy || !digitalId}>
-                      Extend Trip
+                      Extend trip
                     </Button>
                   </form>
 
                   <div className="flex items-center gap-2">
                     <Input type="file" onChange={(e) => setFile(e.target.files?.[0] || null)} />
                     <Button variant="outline" disabled={busy || !digitalId || !file} onClick={onUpload}>
-                      Upload Document
+                      Upload ID copy
                     </Button>
                   </div>
                 </div>

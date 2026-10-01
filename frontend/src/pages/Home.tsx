@@ -55,7 +55,7 @@ export default function Home() {
     if (askedLocation.current) return;
     askedLocation.current = true;
     if (!navigator.geolocation) {
-      notify({ tone: "warning", message: "Geolocation is not supported; using a default location." });
+      notify({ tone: "warning", message: "Your browser doesn't support location. Using a default location." });
       return;
     }
     navigator.geolocation.getCurrentPosition(
@@ -69,7 +69,7 @@ export default function Home() {
         notify({
           tone: "warning",
           title: "Location unavailable",
-          message: `${err.message}. Using a default location — click "Use my location" to retry.`,
+          message: `We couldn't get your location, so a default one is shown. Allow location access and click "Use my location" to try again.`,
         })
     );
   }, [notify]);
@@ -139,7 +139,7 @@ export default function Home() {
   function armSOS() {
     if (arming || sending) return;
     if (!user) {
-      notify({ tone: "warning", title: "Login required", message: "Log in to send an SOS alert." });
+      notify({ tone: "warning", title: "Please log in", message: "You need to be logged in to send an SOS." });
       return;
     }
     setSeconds(5);
@@ -148,7 +148,7 @@ export default function Home() {
 
   function cancelSOS() {
     setArming(false);
-    notify({ tone: "info", title: "SOS Cancelled", message: "No alert was sent." });
+    notify({ tone: "info", title: "SOS cancelled", message: "No alert was sent." });
   }
 
   // Countdown: one timeout per second; cleanup cancels it on cancel/unmount.
@@ -182,10 +182,15 @@ export default function Home() {
     try {
       const { coords: here, source } = await currentPosition();
       await http.post(`${API_BASE}/alerts/panic`, { lat: here.lat, lon: here.lng, locationSource: source });
+      const where =
+        source === "gps" ? "your current location"
+        : source === "last-known" ? "your last known location"
+        : source === "manual" ? "the location you entered"
+        : "an approximate location";
       notify({
         tone: "success",
-        title: "SOS alert recorded",
-        message: `Location ${here.lat.toFixed(5)}, ${here.lng.toFixed(5)} (${source}) saved and visible to admins.`,
+        title: "SOS sent",
+        message: `The response team can see ${where} (${here.lat.toFixed(4)}, ${here.lng.toFixed(4)}).`,
       });
     } catch (e: any) {
       const status = e?.response?.status;
@@ -195,7 +200,7 @@ export default function Home() {
         message:
           status === 401
             ? "Your session expired. Please log in again."
-            : e?.response?.data?.error || "Could not reach the server. Call local emergency services directly.",
+            : "We couldn't send your SOS. If you're in danger, call 112 now.",
       });
     } finally {
       setSending(false);
@@ -227,19 +232,27 @@ export default function Home() {
             <div className="flex flex-col gap-3 text-sm text-neutral-600">
               <div className="flex items-center gap-2">
                 <Activity size={16} />
-                Backend: {status}
+                {status.startsWith("ok") ? (
+                  <span className="text-emerald-700">Online</span>
+                ) : status.startsWith("checking") ? (
+                  "Connecting…"
+                ) : (
+                  <span className="text-red-600">Can't reach the server. Some features may not work.</span>
+                )}
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
                 <MapPin size={16} />
                 <span>
-                  Lat: {coords.lat.toFixed(5)}, Lng: {coords.lng.toFixed(5)}
+                  {coordsSource === "gps" ? "Your location" : coordsSource === "manual" ? "Checking" : "Default location"}:{" "}
+                  {coords.lat.toFixed(4)}, {coords.lng.toFixed(4)}
                 </span>
                 <Button variant="outline" className="ml-2" onClick={useMyLocation}>
                   Use my location
                 </Button>
               </div>
 
+              <div className="text-xs text-neutral-500 mt-1">Check another place</div>
               <div className="flex flex-wrap gap-2">
                 <Input
                   type="number"
@@ -261,21 +274,21 @@ export default function Home() {
                     setManual((s) => ({ ...s, lng: parseFloat(e.target.value || "0") }))
                   }
                 />
-                <Button onClick={() => { setCoords(manual); setCoordsSource("manual"); }}>Update point</Button>
+                <Button onClick={() => { setCoords(manual); setCoordsSource("manual"); }}>Check</Button>
               </div>
             </div>
           </CardBody>
         </Card>
 
         <Card>
-          <CardHeader title="Zone Risk at Your Location" actions={<Shield size={18} className="text-neutral-400" />} />
+          <CardHeader title="Risk at your location" actions={<Shield size={18} className="text-neutral-400" />} />
           <CardBody>
             <div className="flex items-end gap-4">
               <div className="text-5xl font-extrabold leading-none">{busy ? "…" : score}</div>
               <div className={`text-sm font-semibold ${levelColor}`}>{busy ? "" : level.toUpperCase()}</div>
             </div>
             <div className="mt-1 text-xs text-neutral-500">
-              Zone: {zoneName} · location: {coordsSource === "gps" ? "GPS" : coordsSource}
+              {risk?.inside ? `Inside ${zoneName}` : "Not inside a risk zone"}
             </div>
 
             <div className="mt-4 h-2 w-full rounded-full bg-neutral-200 overflow-hidden">
@@ -330,16 +343,15 @@ export default function Home() {
         </div>
 
         <Card>
-          <CardHeader title="Safety at This Place" />
+          <CardHeader title="This location" />
           <CardBody>
             <div className="text-sm text-neutral-600">
-              {busy ? "Calculating…" : risk?.inside ? "This point is inside a defined zone." : "This point is outside defined zones."}
+              {busy ? "Checking…" : risk?.inside ? "This location is inside a risk zone. Stay alert." : "This location is not inside any known risk zone."}
             </div>
 
-            <div className="mt-3 grid grid-cols-3 gap-3">
+            <div className="mt-3 grid grid-cols-2 gap-3">
               <Metric label="Risk score" value={busy ? "…" : String(score)} />
               <Metric label="Level" value={busy ? "…" : level} tone={level} />
-              <Metric label="Zone" value={busy ? "…" : zoneName} />
             </div>
 
             {/* cancel bar shows only while arming */}
@@ -357,17 +369,17 @@ export default function Home() {
       {/* BOTTOM: Nearby zones + Travel advisory + Shortcuts */}
       <div className="grid gap-6 md:grid-cols-3">
         <Card className="md:col-span-2">
-          <CardHeader title="Nearby Zone Risk (Top 3)" />
+          <CardHeader title="Nearest risk zones" />
           <CardBody>
             {!nearest.length ? (
-              <div className="text-sm text-neutral-600">No zones found.</div>
+              <div className="text-sm text-neutral-600">No risk zones nearby.</div>
             ) : (
               <ul className="divide-y">
                 {nearest.map((z) => (
                   <li key={z._id} className="py-3 flex items-center justify-between">
                     <div>
                       <div className="font-medium">{z.name}</div>
-                      <div className="text-xs text-neutral-500">{z._distKm.toFixed(2)} km away</div>
+                      <div className="text-xs text-neutral-500">{z._distKm < 10 ? z._distKm.toFixed(1) : Math.round(z._distKm).toLocaleString()} km away</div>
                     </div>
                     <div className="text-sm text-right">
                       <div className={z.riskLevel === "high" ? "text-red-600" : z.riskLevel === "medium" ? "text-yellow-600" : "text-emerald-600"}>
@@ -383,7 +395,7 @@ export default function Home() {
         </Card>
 
         <Card>
-          <CardHeader title="Travel Advisory" />
+          <CardHeader title="Travel tips" />
           <CardBody>
             <ul className="list-disc pl-5 text-sm space-y-2 text-neutral-700">
               <li>Keep a copy of ID and emergency contacts offline.</li>
@@ -396,17 +408,17 @@ export default function Home() {
 
       <div className="grid gap-6 md:grid-cols-3">
         <Card>
-          <CardHeader title="Quick Incident" />
+          <CardHeader title="Report an incident" />
           <CardBody>
-            <p className="text-sm text-neutral-600 mb-3">Log a brief incident snapshot. You can file a full e-FIR next.</p>
-            <Button onClick={() => (window.location.href = "/efir")}>Open e-FIR</Button>
+            <p className="text-sm text-neutral-600 mb-3">Lost something or had a bad experience? File an e-FIR.</p>
+            <Button onClick={() => (window.location.href = "/efir")}>File e-FIR</Button>
           </CardBody>
         </Card>
 
         <Card>
-          <CardHeader title="Nearest Police Station" />
+          <CardHeader title="Police stations" />
           <CardBody>
-            <p className="text-sm text-neutral-600 mb-3">Open Google Maps near your location.</p>
+            <p className="text-sm text-neutral-600 mb-3">Find police stations near you on Google Maps.</p>
             <Button
               variant="outline"
               onClick={() =>
@@ -422,9 +434,9 @@ export default function Home() {
         </Card>
 
         <Card>
-          <CardHeader title="Nearest Hospital" />
+          <CardHeader title="Hospitals" />
           <CardBody>
-            <p className="text-sm text-neutral-600 mb-3">Find emergency medical help quickly.</p>
+            <p className="text-sm text-neutral-600 mb-3">Find hospitals near you on Google Maps.</p>
             <Button
               variant="outline"
               onClick={() =>
@@ -463,9 +475,9 @@ function Metric({
       ? "text-emerald-600"
       : "text-neutral-900";
   return (
-    <div className="rounded-xl border p-3">
+    <div className="rounded-xl border p-3 min-w-0">
       <div className="text-xs text-neutral-500">{label}</div>
-      <div className={`text-lg font-semibold ${c}`}>{value}</div>
+      <div className={`text-lg font-semibold truncate ${c}`} title={value}>{value}</div>
     </div>
   );
 }

@@ -17,7 +17,7 @@ export default function DigitalIdSetup() {
 
       {address && (
         <div className="rounded-xl border p-4 bg-green-50">
-          <p className="font-medium">Wallet linked ✅</p>
+          <p className="font-medium">Wallet linked</p>
           <p className="text-sm text-neutral-700 break-all">{address}</p>
           <p className="text-xs text-neutral-500 mt-1">
             You can now proceed with blockchain-backed attestations.

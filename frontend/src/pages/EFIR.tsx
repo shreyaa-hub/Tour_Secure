@@ -68,7 +68,7 @@ export default function EFIR() {
     setContact("");
     setSummary("");
     setFiles([]);
-    notify({ tone: "info", title: "Draft cleared", message: "All fields reset." });
+    notify({ tone: "info", title: "Form cleared", message: "Your draft was removed." });
   }
 
   /** ---------- load EFIR list ---------- */
@@ -94,7 +94,7 @@ export default function EFIR() {
           .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt))
       );
     } catch (e: any) {
-      notify({ tone: "error", message: e?.message ?? "Failed to load e-FIRs" });
+      notify({ tone: "error", message: "Couldn't load your reports." });
     } finally {
       setLoading(false);
     }
@@ -108,14 +108,14 @@ export default function EFIR() {
   /** ---------- use my location ---------- */
   async function useMyLocation() {
     if (!navigator.geolocation) {
-      notify({ tone: "warning", message: "Geolocation not supported." });
+      notify({ tone: "warning", message: "Your browser doesn't support location." });
       return;
     }
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const add = `\n\nLocation: ${pos.coords.latitude.toFixed(5)}, ${pos.coords.longitude.toFixed(5)}`;
         setSummary((s) => (s.includes("Location:") ? s : (s + add).trimStart()));
-        notify({ tone: "success", message: "Coordinates added to report." });
+        notify({ tone: "success", message: "Your location was added to the description." });
       },
       (err) => notify({ tone: "error", message: err.message })
     );
@@ -131,9 +131,9 @@ export default function EFIR() {
   const summaryTooLong = summaryCount > MAX_LEN;
 
   function validate(): string | null {
-    if (!name.trim()) return "Name is required.";
-    if (!summary.trim()) return "Description is required.";
-    if (summaryTooLong) return `Description is too long (max ${MAX_LEN} chars).`;
+    if (!name.trim()) return "Enter your name.";
+    if (!summary.trim()) return "Describe what happened.";
+    if (summaryTooLong) return `Please keep the description under ${MAX_LEN} characters.`;
     return null;
   }
 
@@ -147,7 +147,7 @@ export default function EFIR() {
     }
 
     if (!user) {
-      notify({ tone: "warning", message: "Please login before submitting an e-FIR." });
+      notify({ tone: "warning", message: "Please log in to file a report." });
       return;
     }
 
@@ -167,12 +167,12 @@ export default function EFIR() {
 
       await http.post(`${API_BASE}/efir`, body);
 
-      notify({ tone: "success", title: "Submitted", message: "Your e-FIR has been recorded." });
+      notify({ tone: "success", title: "Report filed", message: "Your e-FIR has been submitted. Its status is Pending." });
       clearDraft();
       await load();
       setPage(1);
     } catch (e: any) {
-      notify({ tone: "error", message: e?.message ?? "Failed to submit e-FIR" });
+      notify({ tone: "error", message: "Couldn't file your report. Please try again." });
     } finally {
       setBusy(false);
     }
@@ -195,19 +195,20 @@ export default function EFIR() {
   return (
     <>
       <h1 className="page-title">e-FIR</h1>
+      <p className="mt-1 text-sm text-neutral-600">File an electronic First Information Report for theft, harassment or other incidents.</p>
 
       {/* Top row: Submit + Tools */}
       <div className="grid gap-6 md:grid-cols-3 mt-6">
         <Card className="md:col-span-2">
           <CardHeader
-            title="Submit Report"
+            title="File a report"
             actions={
               <div className="flex items-center gap-2">
                 <Button variant="outline" onClick={useMyLocation}>
                   <MapPin size={16} className="mr-1" /> Use my location
                 </Button>
                 <Button variant="outline" onClick={clearDraft}>
-                  Clear Draft
+                  Clear form
                 </Button>
               </div>
             }
@@ -216,13 +217,13 @@ export default function EFIR() {
             <form onSubmit={onSubmit} className="space-y-4">
               <div className="grid sm:grid-cols-2 gap-3">
                 <Input placeholder="Your name" value={name} onChange={(e) => setName(e.target.value)} required />
-                <Input placeholder="Contact (optional)" value={contact} onChange={(e) => setContact(e.target.value)} />
+                <Input placeholder="Phone or email (optional)" value={contact} onChange={(e) => setContact(e.target.value)} />
               </div>
 
               <div>
                 <Textarea
                   className="h-40"
-                  placeholder="Describe the incident. Add place, time, people involved, and any identifiers."
+                  placeholder="What happened? Include the place, time and anything that could help identify those involved."
                   value={summary}
                   onChange={(e) => setSummary(e.target.value)}
                   required
@@ -233,7 +234,7 @@ export default function EFIR() {
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium">Attachments (optional)</label>
+                <label className="block text-sm font-medium">Photos or videos (optional)</label>
                 <input type="file" multiple accept="image/*,video/*" onChange={(e) => onPickFiles(e.target.files)} />
                 {files.length > 0 && (
                   <ul className="grid sm:grid-cols-2 gap-2">
@@ -246,16 +247,16 @@ export default function EFIR() {
                   </ul>
                 )}
                 <p className="text-xs text-neutral-500">
-                  Tip: filenames will be included in the saved report. (Demo: files are not uploaded.)
+                  Only file names are saved with your report. Keep the original photos or videos as evidence.
                 </p>
               </div>
 
               <div className="flex items-center justify-between">
                 <div className="text-xs text-neutral-500">
-                  Do not include sensitive info you don’t wish to store.
+                  Don't include passwords or ID numbers.
                 </div>
                 <Button type="submit" disabled={busy || !!validate()}>
-                  {busy ? "Submitting…" : user ? "Submit" : "Login to submit"}
+                  {busy ? "Submitting…" : user ? "File report" : "Log in to file"}
                 </Button>
               </div>
             </form>
@@ -264,13 +265,13 @@ export default function EFIR() {
 
         {/* Quick tips */}
         <Card className="md:col-span-1">
-          <CardHeader title="Guidelines" />
+          <CardHeader title="Before you file" />
           <CardBody>
             <ul className="list-disc pl-5 text-sm space-y-2 text-neutral-700">
-              <li>Provide accurate contact details to enable follow-up.</li>
-              <li>Use <strong>Use my location</strong> for precise coordinates.</li>
-              <li>Keep your summary clear and under {MAX_LEN} characters.</li>
-              <li>Avoid posting passwords or personal IDs here.</li>
+              <li>Add a phone number or email so the police can follow up.</li>
+              <li>Say what happened, where, and when.</li>
+              <li>Click <strong>Use my location</strong> to add exact coordinates.</li>
+              <li>In an emergency, call 112 first.</li>
             </ul>
           </CardBody>
         </Card>
@@ -278,12 +279,12 @@ export default function EFIR() {
 
       {/* Recent submissions */}
       <Card className="mt-6">
-        <CardHeader title="Recent e-FIR Submissions" />
+        <CardHeader title="Your reports" />
         <CardBody>
           <div className="flex flex-wrap items-center gap-3 mb-4">
             <Input
               className="w-60"
-              placeholder="Search name/contact/text…"
+              placeholder="Search your reports"
               value={q}
               onChange={(e) => {
                 setQ(e.target.value);
@@ -301,7 +302,7 @@ export default function EFIR() {
           {loading ? (
             <Loading />
           ) : filtered.length === 0 ? (
-            <div className="text-sm text-neutral-600">No submissions found.</div>
+            <div className="text-sm text-neutral-600">{list.length ? "No reports match your search." : "You haven't filed any reports yet."}</div>
           ) : (
             <>
               <ul className="grid md:grid-cols-2 gap-3">

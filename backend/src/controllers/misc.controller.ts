@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import Review from "../models/Review";       // ✅
+import Review from "../models/Review";
 
 import Itinerary from '../models/itinerary.model';
 import EFIR from '../models/efir.model';

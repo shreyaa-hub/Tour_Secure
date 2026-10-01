@@ -17,7 +17,7 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// ✅ Make 401s from *public* endpoints silent
+// Make 401s from *public* endpoints silent
 const PUBLIC_PATHS = [
   "/api/auth/login",
   "/api/auth/register",

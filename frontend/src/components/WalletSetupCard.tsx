@@ -131,7 +131,7 @@ export default function WalletSetupCard({ userId, onSaved }: Props) {
               Verify
             </button>
             {confirmed ? (
-              <p className="text-xs text-green-700">✅ Backup confirmed.</p>
+              <p className="text-xs text-green-700">Backup confirmed.</p>
             ) : (
               <p className="text-xs text-neutral-500">Enter the exact words to proceed.</p>
             )}

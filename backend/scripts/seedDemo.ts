@@ -78,7 +78,7 @@ async function main() {
       { upsert: true }
     );
   }
-  console.log(`✅ Upserted ${zones.length} demo zones`);
+  console.log(`Upserted ${zones.length} demo zones`);
 
   await SafetyScore.syncIndexes();
   for (const a of chennaiAreas) {
@@ -96,7 +96,7 @@ async function main() {
       { upsert: true }
     );
   }
-  console.log(`✅ Upserted ${chennaiAreas.length} Chennai-region safety areas`);
+  console.log(`Upserted ${chennaiAreas.length} Chennai-region safety areas`);
 
   const email = process.env.ADMIN_EMAIL?.toLowerCase().trim();
   const password = process.env.ADMIN_PASSWORD;
@@ -104,10 +104,10 @@ async function main() {
     const existing = await User.findOne({ email });
     if (existing) {
       await User.updateOne({ email }, { $set: { role: "admin" } });
-      console.log(`✅ Promoted existing user to admin: ${email}`);
+      console.log(`Promoted existing user to admin: ${email}`);
     } else {
       await User.create({ name: "Admin", email, password: await bcrypt.hash(password, 10), role: "admin" });
-      console.log(`✅ Created admin user: ${email}`);
+      console.log(`Created admin user: ${email}`);
     }
   } else {
     console.log("ℹ️  Skipped admin user (set ADMIN_EMAIL and ADMIN_PASSWORD to create one)");

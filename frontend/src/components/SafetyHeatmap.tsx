@@ -110,13 +110,10 @@ function DebugOverlay({ points, show }: { points: ScorePoint[]; show: boolean })
           <Popup>
             <div style={{ minWidth: 160 }}>
               <div style={{ fontWeight: 600, marginBottom: 4 }}>
-                {p.name || "Unknown area"}
+                {p.name || "Unnamed area"}
               </div>
               <div>
-                Safety Score: <b>{p.safety_score}</b>/100
-              </div>
-              <div style={{ fontSize: 12, opacity: 0.8 }}>
-                Lat: {p.lat.toFixed(5)} • Lng: {p.lng.toFixed(5)}
+                Safety score: <b>{p.safety_score}</b>/100
               </div>
             </div>
           </Popup>
@@ -136,7 +133,7 @@ export default function SafetyHeatmap() {
   // user's position (null until the browser grants and returns a fix)
   const [userPos, setUserPos] = useState<{ lat: number; lng: number } | null>(null);
   const coordsRef = useRef<{ lat: number; lng: number } | null>(null);
-  const [status, setStatus] = useState("Requesting your location…");
+  const [status, setStatus] = useState("Finding your location…");
 
   const [showDebug, setShowDebug] = useState(false);
 
@@ -155,7 +152,7 @@ export default function SafetyHeatmap() {
         const data = await r.json();
         if (Array.isArray(data) && data.length > 0) {
           setPoints(data);
-          setStatus(`Showing ${data.length} areas within ${RADIUS_KM} km of you`);
+          setStatus(`${data.length} areas within ${RADIUS_KM} km of you`);
           return;
         }
       }
@@ -169,11 +166,11 @@ export default function SafetyHeatmap() {
       }
       setStatus(
         c
-          ? `No data within ${RADIUS_KM} km of you — showing all ${all.length} areas`
-          : `Location unavailable — showing all ${all.length} areas`
+          ? `No areas within ${RADIUS_KM} km of you. Showing all ${all.length} areas.`
+          : `Location is off. Showing all ${all.length} areas.`
       );
     } catch {
-      setStatus("Could not load safety data (is the backend running?)");
+      setStatus("Couldn't load safety data. Try Refresh.");
     }
   }, []);
 
@@ -196,14 +193,14 @@ export default function SafetyHeatmap() {
     );
   }, [loadData]);
 
-  // 🔁 Listen: refresh heatmap when reviews are submitted
+  // Listen: refresh heatmap when reviews are submitted
   useEffect(() => {
     const handler = () => loadData();
     window.addEventListener("heatmap:refresh", handler);
     return () => window.removeEventListener("heatmap:refresh", handler);
   }, [loadData]);
 
-  // 🔁 Also refresh when tab regains focus
+  // Also refresh when tab regains focus
   useEffect(() => {
     const onVisible = () => {
       if (document.visibilityState === "visible") loadData();
@@ -223,7 +220,7 @@ export default function SafetyHeatmap() {
       .then((r) => r.json())
       .then((data) => {
         if (data?.message || !Array.isArray(data) || data.length === 0) {
-          setResult({ name: "Not Found", lat: 0, lng: 0, safety_score: 0 });
+          setResult({ name: "", lat: 0, lng: 0, safety_score: 0 });
           return;
         }
         const best: ScorePoint = data[0];
@@ -248,7 +245,7 @@ export default function SafetyHeatmap() {
       <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[1000] bg-white shadow rounded-xl overflow-hidden flex">
         <input
           className="px-3 py-2 text-sm outline-none min-w-[260px]"
-          placeholder="Search area (e.g., Shillong)"
+          placeholder="Search a place, e.g. T Nagar"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && onSearch()}
@@ -264,12 +261,14 @@ export default function SafetyHeatmap() {
       {/* Result card */}
       {result && (
         <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-[1000] bg-white/95 px-4 py-3 rounded-xl shadow text-center">
-          <div className="font-semibold">{result.name}</div>
-          <div className="text-sm">
-            {result.name === "Not Found"
-              ? "No data available"
-              : `Safety Score: ${result.safety_score}/100`}
-          </div>
+          {result.name ? (
+            <>
+              <div className="font-semibold">{result.name}</div>
+              <div className="text-sm">Safety score: {result.safety_score}/100</div>
+            </>
+          ) : (
+            <div className="text-sm">No matching area. Try another name.</div>
+          )}
         </div>
       )}
 
@@ -295,9 +294,9 @@ export default function SafetyHeatmap() {
 
       {/* Legend + controls */}
       <div className="absolute right-4 bottom-4 z-[1000] bg-white/90 rounded-xl p-3 shadow text-sm space-y-2">
-        <div className="font-semibold">Risk Heat Legend</div>
-        <div>Red = Higher Risk (lower safety)</div>
-        <div>Blue/Green = Lower Risk</div>
+        <div className="font-semibold">Legend</div>
+        <div className="flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-red-500" /> Less safe</div>
+        <div className="flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-emerald-500" /> Safer</div>
 
         <div className="h-px bg-neutral-200 my-1" />
 
@@ -307,14 +306,13 @@ export default function SafetyHeatmap() {
             checked={showDebug}
             onChange={(e) => setShowDebug(e.target.checked)}
           />
-          <span>Debug: Points & Scores</span>
+          <span>Show scores</span>
         </label>
 
         <div className="text-xs text-neutral-600 max-w-[220px]" role="status">{status}</div>
         <button
           onClick={() => loadData()}
           className="mt-1 w-full rounded-md bg-neutral-900 text-white px-3 py-1"
-          title="Force refresh the heatmap"
         >
           Refresh
         </button>

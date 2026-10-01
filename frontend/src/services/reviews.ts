@@ -57,7 +57,7 @@ export async function submitReview(
   const data: ReviewResponse = await r.json();
   if (!r.ok) throw new Error((data as any)?.error || "Failed to submit review");
 
-  // 🔔 Fire a custom event so SafetyHeatmap refreshes instantly
+  // Fire a custom event so SafetyHeatmap refreshes instantly
   window.dispatchEvent(new CustomEvent("heatmap:refresh"));
 
   return data;

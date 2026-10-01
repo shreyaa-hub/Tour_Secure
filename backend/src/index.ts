@@ -19,8 +19,8 @@ import geoRouter from "./routes/geo.routes";
 import digitalIdRouter from "./routes/digitalId";
 import safetyRouter from "./routes/safety.routes";
 import reviewsRouter from "./routes/reviews.routes";
-import debugRouter from "./routes/debug.routes"; // ✅ use existing file name (no underscore)
-import itineraryRoutes from "./routes/itinerary.routes"; // ✅ user-specific itinerary
+import debugRouter from "./routes/debug.routes"; // use existing file name (no underscore)
+import itineraryRoutes from "./routes/itinerary.routes"; // user-specific itinerary
 
 async function start() {
   const env = getEnv();
@@ -70,7 +70,7 @@ async function start() {
   app.use("/api/user", userWalletRouter);
   app.use("/api/efir", efirRouter);
   app.use("/api/digital-id", digitalIdRouter);
-  app.use("/api/itinerary", itineraryRoutes); // ✅ itinerary routes
+  app.use("/api/itinerary", itineraryRoutes); // itinerary routes
 
   // ---- Debug (only in dev) ----
   if (env.NODE_ENV !== "production") {
@@ -95,8 +95,8 @@ async function start() {
 
   const port = Number(env.PORT) || 4000;
   app.listen(port, () => {
-    console.log(`✅ API running at http://localhost:${port}`);
-    console.log(`🔐 CORS origins: ${origins.join(", ") || "(none)"}`);
+    console.log(`API running at http://localhost:${port}`);
+    console.log(`CORS origins: ${origins.join(", ") || "(none)"}`);
   });
 }
 

@@ -54,7 +54,7 @@ router.post("/", requireAuth, async (req: AuthedRequest, res, next) => {
     const item = await Efir.create({
       name: norm.name,
       contact: norm.contact,
-      summary: finalSummary,          // ✅ guaranteed present now
+      summary: finalSummary,          // guaranteed present now
       attachments: norm.attachments,
       location: norm.location,
       user: req.user!.id,             // owner is the logged in user
@@ -63,7 +63,7 @@ router.post("/", requireAuth, async (req: AuthedRequest, res, next) => {
 
     return res.status(201).json({ ok: true, item });
   } catch (err) {
-    console.error("❌ Error in POST /api/efir:", err, "body:", req.body);
+    console.error("Error in POST /api/efir:", err, "body:", req.body);
     return res.status(500).json({ error: "Internal Server Error" });
   }
 });
@@ -80,7 +80,7 @@ router.get("/", requireAuth, async (req: AuthedRequest, res) => {
 
     return res.json({ ok: true, items });
   } catch (err) {
-    console.error("❌ Error in GET /api/efir:", err);
+    console.error("Error in GET /api/efir:", err);
     return res.status(500).json({ error: "Internal Server Error" });
   }
 });

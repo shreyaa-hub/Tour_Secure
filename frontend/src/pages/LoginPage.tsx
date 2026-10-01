@@ -12,7 +12,7 @@ export default function LoginPage() {
     try {
       await login(email, password);   // calls backend
       const session = await me();     // verifies session
-      console.log("✅ Logged in:", session);
+      console.log("Logged in:", session);
       // TODO: navigate to dashboard
     } catch (err: any) {
       setError(err?.response?.data?.error || "Login failed");

@@ -20,7 +20,7 @@ const EfirSchema = new Schema<IEfir>(
     name: { type: String, trim: true },
     contact: { type: String, trim: true },
 
-    // 🔧 Make summary optional with a safe default so it never blocks writes.
+    // Make summary optional with a safe default so it never blocks writes.
     summary: { type: String, trim: true, default: "" },
 
     attachments: [{ type: String }],

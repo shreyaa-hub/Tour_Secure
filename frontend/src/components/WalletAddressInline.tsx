@@ -108,7 +108,7 @@ export default function WalletAddressInline({ userId, value = "", onChange }: Pr
               Verify Backup
             </button>
             {confirmed ? (
-              <p className="text-xs text-green-700 mt-1">✅ Backup confirmed.</p>
+              <p className="text-xs text-green-700 mt-1">Backup confirmed.</p>
             ) : (
               <p className="text-xs text-neutral-500 mt-1">Enter the exact words to proceed.</p>
             )}

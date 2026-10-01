@@ -18,6 +18,7 @@ type Zone = {
   name: string;
   riskLevel: RiskLevel;
   riskScore: number;
+  description?: string;
   polygon: { type: "Polygon"; coordinates: [number, number][][] };
 };
 
@@ -53,7 +54,7 @@ export default function Heatmap() {
         if (!alive) return;
         setZones(data as any);
       } catch (e: any) {
-        notify({ tone: "error", message: e?.message ?? "Failed to load zones" });
+        notify({ tone: "error", message: "Couldn't load risk zones." });
       } finally {
         if (alive) setLoadingZones(false);
       }
@@ -73,10 +74,10 @@ export default function Heatmap() {
     for (const p of parts) {
       const [lngStr, latStr] = p.split(",").map(s => (s || "").trim());
       const x = parseNum(lngStr ?? ""), y = parseNum(latStr ?? "");
-      if (x === null || y === null) throw new Error(`Invalid pair: "${p}". Use "lng,lat;lng,lat;..."`);
+      if (x === null || y === null) throw new Error(`"${p}" isn't a valid "lng,lat" pair.`);
       ring.push([x, y]);
     }
-    if (ring.length < 3) throw new Error("Polygon needs at least 3 coordinate pairs.");
+    if (ring.length < 3) throw new Error("A zone needs at least 3 points.");
     const [fx, fy] = ring[0], [lx, ly] = ring[ring.length - 1];
     if (fx !== lx || fy !== ly) ring.push([fx, fy]); // close
     return ring;
@@ -85,18 +86,18 @@ export default function Heatmap() {
   async function onCheck() {
     try {
       setChecking(true);
-      if (!Number.isFinite(lat) || !Number.isFinite(lng)) throw new Error("Lat/Lng required.");
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) throw new Error("Enter both latitude and longitude.");
       const res = await checkPoint(lat, lng);
       if (!res) throw new Error("No response");
       const level = (res.riskLevel ?? "low") as RiskLevel;
       setCheckMsg(
         res.inside
-          ? `Inside zone: ${level.toUpperCase()} (score ${res.riskScore ?? "?"})`
-          : "Outside zones"
+          ? `Inside ${res.matchedZones?.[0]?.name ?? "a risk zone"}: ${level} risk (score ${res.riskScore ?? "?"})`
+          : "Not inside any risk zone."
       );
       setCheckTone(res.inside ? level : "info");
     } catch (e: any) {
-      setCheckMsg(`Error: ${e?.message ?? "check failed"}`);
+      setCheckMsg(e?.message ?? "Couldn't check this location.");
       setCheckTone("info");
     } finally {
       setChecking(false);
@@ -105,7 +106,7 @@ export default function Heatmap() {
 
   function useMyLocation() {
     if (!navigator.geolocation) {
-      notify({ tone: "warning", message: "Geolocation not supported in this browser." });
+      notify({ tone: "warning", message: "Your browser doesn't support location." });
       return;
     }
     navigator.geolocation.getCurrentPosition(
@@ -118,7 +119,7 @@ export default function Heatmap() {
     e.preventDefault();
     try {
       setCreating(true);
-      if (!name.trim()) throw new Error("Name is required.");
+      if (!name.trim()) throw new Error("Enter a zone name.");
       const ring = buildRing(coords);
       const band = Math.max(0, Math.min(100, riskScore));
       const z = await createZone({
@@ -129,9 +130,9 @@ export default function Heatmap() {
       });
       setZones(s => [z as any, ...s]);
       setName(""); setCoords(""); setRiskLevel("medium"); setRiskScore(50);
-      notify({ tone: "success", title: "Zone added", message: "New zone created successfully." });
+      notify({ tone: "success", title: "Zone added", message: `${name.trim()} is now a ${riskLevel}-risk zone.` });
     } catch (e: any) {
-      notify({ tone: "error", message: e?.message ?? "Failed to create zone" });
+      notify({ tone: "error", message: e?.message ?? "Couldn't add the zone." });
     } finally {
       setCreating(false);
     }
@@ -180,18 +181,19 @@ export default function Heatmap() {
 
   return (
     <>
-      <h1 className="page-title">Heatmap</h1>
+      <h1 className="page-title">Safety Map</h1>
+      <p className="mt-1 text-sm text-neutral-600">
+        Red areas are less safe, green and blue areas are safer. Search for a place or use your location.
+      </p>
 
-      {/* ✅ NEW: AI Safety Score Heat Map (GPS + Search) */}
       <div className="mt-6">
-        <div className="section-title mb-2">Safety Score Heat Map</div>
         <SafetyHeatmap />
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2 mt-6">
+      <div className={`grid gap-6 mt-6 ${isAdmin ? "md:grid-cols-2" : ""}`}>
         {/* Check card */}
         <Card>
-          <CardHeader title="Check Risk at a Point" />
+          <CardHeader title="Check a location" />
           <CardBody>
             <div className="flex flex-wrap gap-3 items-center">
               <Input
@@ -199,14 +201,14 @@ export default function Heatmap() {
                 type="number" step="0.0001"
                 value={Number.isFinite(lat) ? lat : "" as any}
                 onChange={e => setLat(parseNum(e.target.value) ?? NaN)}
-                placeholder="lat"
+                placeholder="Latitude"
               />
               <Input
                 className="w-40"
                 type="number" step="0.0001"
                 value={Number.isFinite(lng) ? lng : "" as any}
                 onChange={e => setLng(parseNum(e.target.value) ?? NaN)}
-                placeholder="lng"
+                placeholder="Longitude"
               />
               <Button onClick={onCheck} disabled={checking}>Check</Button>
               <Button variant="outline" onClick={useMyLocation}>
@@ -227,17 +229,17 @@ export default function Heatmap() {
                   </span>
                 </div>
               ) : (
-                <div className="text-sm text-neutral-600">Enter coordinates and press Check.</div>
+                <div className="text-sm text-neutral-600">Enter coordinates or use your location, then press Check.</div>
               )}
             </div>
 
             {/* Nearest zones */}
             <div className="mt-6">
-              <div className="section-title mb-2">Nearby Zones (Top 5)</div>
+              <div className="section-title mb-2">Nearest risk zones</div>
               {loadingZones ? (
                 <Loading />
               ) : nearest.length === 0 ? (
-                <div className="text-sm text-neutral-600">No zones found.</div>
+                <div className="text-sm text-neutral-600">No risk zones yet.</div>
               ) : (
                 <ul className="divide-y">
                   {nearest.map(z => (
@@ -245,7 +247,7 @@ export default function Heatmap() {
                       <div className="min-w-0">
                         <div className="font-medium truncate">{z.name}</div>
                         <div className="text-xs text-neutral-500">
-                          {z._distKm.toFixed(2)} km away
+                          {z._distKm < 10 ? z._distKm.toFixed(1) : Math.round(z._distKm).toLocaleString()} km away
                         </div>
                       </div>
                       <div className="flex items-center gap-3">
@@ -254,9 +256,9 @@ export default function Heatmap() {
                         <Button
                           variant="outline"
                           onClick={() => { setLat(z._centroid.lat); setLng(z._centroid.lng); }}
-                          title="Center check point to this zone"
+                          title="Check the centre of this zone"
                         >
-                          Center here
+                          Select
                         </Button>
                       </div>
                     </li>
@@ -267,64 +269,60 @@ export default function Heatmap() {
           </CardBody>
         </Card>
 
-        {/* Create zone (admin only — also enforced by the API) */}
+        {/* Create zone: admins only (also enforced by the API) */}
+        {isAdmin && (
         <Card>
-          <CardHeader title="Add Zone (Admin)" />
+          <CardHeader title="Add a risk zone" />
           <CardBody>
-            {!isAdmin ? (
-              <p className="text-sm text-neutral-600">
-                Only administrators can define risk zones. Log in with an admin account to add one.
-              </p>
-            ) : (
             <form onSubmit={onCreate} className="space-y-4">
               <div className="flex flex-wrap gap-3">
-                <Input className="w-56" placeholder="Name" value={name} onChange={e => setName(e.target.value)} required />
-                <Select value={riskLevel} onChange={e => setRiskLevel(e.target.value as RiskLevel)}>
-                  <option value="low">low</option>
-                  <option value="medium">medium</option>
-                  <option value="high">high</option>
+                <Input className="w-56" placeholder="Zone name" value={name} onChange={e => setName(e.target.value)} required />
+                <Select value={riskLevel} onChange={e => setRiskLevel(e.target.value as RiskLevel)} aria-label="Risk level">
+                  <option value="low">Low risk</option>
+                  <option value="medium">Medium risk</option>
+                  <option value="high">High risk</option>
                 </Select>
-                <Input className="w-28" type="number" min={0} max={100} value={riskScore}
+                <Input className="w-28" type="number" min={0} max={100} value={riskScore} aria-label="Risk score (0-100)"
                        onChange={e => setRiskScore(parseInt(e.target.value || "0", 10))} />
               </div>
 
               <Textarea
                 className="h-24"
-                placeholder="lng,lat;lng,lat;... (first=last optional; will auto-close)"
+                placeholder="Boundary as lng,lat pairs separated by semicolons"
                 value={coords}
                 onChange={e => setCoords(e.target.value)}
                 required
               />
 
               <div className="flex flex-wrap gap-3">
-                <Button type="submit" disabled={creating}>{creating ? "Saving…" : "Create"}</Button>
+                <Button type="submit" disabled={creating}>{creating ? "Saving…" : "Add zone"}</Button>
                 <Button
                   type="button"
                   variant="outline"
                   onClick={() => setCoords(generateSquare(lat, lng, 400))}
-                  title="Create a quick square around current point"
                 >
-                  Generate square @ point
+                  Use area around checked point
                 </Button>
               </div>
 
               <p className="text-xs text-neutral-500">
-                Tip: format is <code>lng,lat;lng,lat;…</code>. Use “Generate square” to get a valid polygon fast.
+                Enter coordinates in "Check a location", then click "Use area around checked point" to fill in a
+                square about 800 m wide.
               </p>
             </form>
-            )}
           </CardBody>
         </Card>
+        )}
       </div>
 
       {/* All zones */}
       <Card className="mt-6">
-        <CardHeader title="All Zones" />
+        <CardHeader title="All risk zones" />
         <CardBody>
           {loadingZones ? (
             <Loading />
           ) : zones.length === 0 ? (
-            <div className="text-sm text-neutral-600">No zones yet.</div>
+            <div className="text-sm text-neutral-600">No risk zones yet.</div>
           ) : (
             <ul className="grid md:grid-cols-2 gap-3">
               {zones.map((z) => (
@@ -332,7 +330,7 @@ export default function Heatmap() {
                   <div className="min-w-0">
                     <div className="font-medium truncate">{z.name}</div>
                     <div className="text-xs text-neutral-500">
-                      {z.polygon?.coordinates?.[0]?.length ?? 0} points
+                      {z.description || "Risk zone"}
                     </div>
                   </div>
                   <div className="text-right">

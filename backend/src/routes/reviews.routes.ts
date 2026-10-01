@@ -47,7 +47,7 @@ function toClientReview(r: any) {
     text: r.text || "",
     createdAt: r.createdAt,
     userId: r?.userId ? String(r.userId) : null,
-    userName: r?.userName ?? null, // NEW: expose review author name
+    userName: r?.userName ?? null, // expose review author name
   };
 }
 
@@ -90,8 +90,8 @@ router.post("/", requireAuth, async (req: AuthedRequest, res, next) => {
       areaName: areaDoc?.name ?? nameRaw, // <- ALWAYS saved
       rating,
       text,
-      userId: user.id,                    // NEW
-      userName,                           // NEW
+      userId: user.id,
+      userName,
     });
 
     // recompute the area's review score (feeds into its safety score)

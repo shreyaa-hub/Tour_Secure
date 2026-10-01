@@ -8,6 +8,13 @@ type Person = { _id: string; name?: string; email?: string } | string | null | u
 type EFIR = { _id: string; name?: string; contact?: string; summary?: string; status?: string; createdAt: string; user?: Person };
 type Alert = { _id: string; userId?: Person; lat?: number; lon?: number; createdAt: string; meta?: { locationSource?: string } };
 
+function sourceLabel(source: string) {
+  return source === "gps" ? "live GPS"
+    : source === "last-known" ? "last known location"
+    : source === "manual" ? "entered by user"
+    : "approximate location";
+}
+
 function personLabel(p: Person) {
   if (!p) return "Unknown user";
   if (typeof p === "string") return p;
@@ -35,9 +42,9 @@ export default function AdminDashboard() {
     } catch (e: any) {
       const status = e?.response?.status;
       setError(
-        status === 401 ? "Session expired — please log in again."
+        status === 401 ? "Your session expired. Please log in again."
         : status === 403 ? "Your account is not an admin."
-        : e?.response?.data?.error || e?.message || "Failed to load admin data"
+        : "Couldn't load the latest data. Retrying…"
       );
     } finally {
       setBusy(false);
@@ -53,20 +60,20 @@ export default function AdminDashboard() {
 
   return (
     <>
-      <h1 className="page-title">Admin</h1>
+      <h1 className="page-title">Admin Dashboard</h1>
       <div className="mt-4 flex items-center gap-3">
         <Button variant="outline" onClick={load} disabled={busy}>{busy ? "Refreshing…" : "Refresh"}</Button>
         <span className="text-xs text-neutral-500">
-          Auto-refreshes every 10 s{updatedAt ? ` · last updated ${updatedAt.toLocaleTimeString()}` : ""}
+          Updates every 10 seconds{updatedAt ? `. Last updated ${updatedAt.toLocaleTimeString()}` : ""}
         </span>
       </div>
       {error && <div className="mt-3 text-sm text-red-600" role="alert">{error}</div>}
 
       <div className="grid gap-6 md:grid-cols-2 mt-6">
         <Card>
-          <CardHeader title="Recent SOS Alerts" />
+          <CardHeader title="SOS alerts" />
           <CardBody>
-            {!alerts ? <Loading /> : alerts.length === 0 ? <div className="text-sm text-neutral-600">No alerts.</div> : (
+            {!alerts ? <Loading /> : alerts.length === 0 ? <div className="text-sm text-neutral-600">No SOS alerts.</div> : (
               <ul className="divide-y">
                 {alerts.map(a => (
                   <li key={a._id} className="py-3">
@@ -78,7 +85,7 @@ export default function AdminDashboard() {
                           {a.lat.toFixed(5)}, {a.lon.toFixed(5)}
                         </a>
                       ) : "No coordinates"}
-                      {a.meta?.locationSource ? <span className="text-xs text-neutral-500"> · {a.meta.locationSource}</span> : null}
+                      {a.meta?.locationSource ? <span className="text-xs text-neutral-500"> · {sourceLabel(a.meta.locationSource)}</span> : null}
                     </div>
                     <div className="text-xs text-neutral-500">{new Date(a.createdAt).toLocaleString()}</div>
                   </li>
@@ -89,9 +96,9 @@ export default function AdminDashboard() {
         </Card>
 
         <Card>
-          <CardHeader title="All e-FIR Submissions" />
+          <CardHeader title="Incident reports (e-FIR)" />
           <CardBody>
-            {!efirs ? <Loading /> : efirs.length === 0 ? <div className="text-sm text-neutral-600">No e-FIRs.</div> : (
+            {!efirs ? <Loading /> : efirs.length === 0 ? <div className="text-sm text-neutral-600">No reports yet.</div> : (
               <ul className="divide-y">
                 {efirs.map(e => (
                   <li key={e._id} className="py-3">

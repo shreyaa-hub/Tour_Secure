@@ -67,7 +67,7 @@ export default function Itinerary() {
         if (!alive) return;
         setItems(list);
       } catch (e: any) {
-        notify({ tone: "error", message: e?.response?.data?.error || e?.message || "Failed to load itinerary" });
+        notify({ tone: "error", message: "Couldn't load your itinerary." });
       } finally {
         if (alive) setLoading(false);
       }
@@ -113,7 +113,7 @@ export default function Itinerary() {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!title.trim()) {
-      notify({ tone: "warning", message: "Title is required." });
+      notify({ tone: "warning", message: "Give this stop a title." });
       return;
     }
     try {
@@ -126,9 +126,9 @@ export default function Itinerary() {
       });
       setItems((s) => [created, ...(s ?? [])]);
       setTitle(""); setDate(""); setLocation(""); setNotes("");
-      notify({ tone: "success", title: "Added", message: "Itinerary item created." });
+      notify({ tone: "success", title: "Added to your itinerary", message: title.trim() });
     } catch (e: any) {
-      notify({ tone: "error", message: e?.response?.data?.error || e?.message || "Failed to add item" });
+      notify({ tone: "error", message: e?.response?.data?.error || "Couldn't add this stop. Please try again." });
     } finally {
       setSubmitting(false);
     }
@@ -210,27 +210,26 @@ export default function Itinerary() {
       {/* Top row: Add + Filters/Export */}
       <div className="grid gap-6 md:grid-cols-3 mt-6">
         <Card className="md:col-span-1">
-          <CardHeader title="Add Itinerary Item" />
+          <CardHeader title="Add a stop" />
           <CardBody>
             <form onSubmit={onSubmit} className="space-y-3">
-              <Input placeholder="Title" value={title} onChange={(e) => setTitle(e.target.value)} required />
+              <Input placeholder="What, e.g. Visit Kamakhya Temple" value={title} onChange={(e) => setTitle(e.target.value)} required />
               <div className="flex gap-3">
                 <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
                 <Button variant="outline" type="button" onClick={quickToday}>Today</Button>
               </div>
-              <Input placeholder="Location (optional)" value={location} onChange={(e) => setLocation(e.target.value)} />
+              <Input placeholder="Where (optional)" value={location} onChange={(e) => setLocation(e.target.value)} />
               <Textarea placeholder="Notes (optional)" value={notes} onChange={(e) => setNotes(e.target.value)} />
               <Button type="submit" disabled={submitting}>{submitting ? "Adding…" : "Add"}</Button>
-              <p className="text-xs text-neutral-500">Tip: Date is optional; you can still sort and export later.</p>
             </form>
           </CardBody>
         </Card>
 
         <Card className="md:col-span-2">
-          <CardHeader title="Filters & Export" />
+          <CardHeader title="Find & export" />
           <CardBody>
             <div className="flex flex-wrap items-end gap-3">
-              <Input className="w-60" placeholder="Search title, location, notes…" value={q} onChange={(e) => setQ(e.target.value)} />
+              <Input className="w-60" placeholder="Search your plans" value={q} onChange={(e) => setQ(e.target.value)} />
               <div className="flex items-center gap-2">
                 <div className="text-xs text-neutral-500">From</div>
                 <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
@@ -240,14 +239,14 @@ export default function Itinerary() {
                 <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
               </div>
               <Select value={sort} onChange={(e) => setSort(e.target.value as any)}>
-                <option value="date-asc">Sort by date ↑</option>
-                <option value="date-desc">Sort by date ↓</option>
-                <option value="created-desc">Newest created</option>
+                <option value="date-asc">Date: earliest first</option>
+                <option value="date-desc">Date: latest first</option>
+                <option value="created-desc">Recently added</option>
               </Select>
 
               <div className="flex-1" />
-              <Button variant="outline" onClick={exportCSV}>Export CSV</Button>
-              <Button variant="outline" onClick={exportICS}>Export ICS</Button>
+              <Button variant="outline" onClick={exportCSV}>Download CSV</Button>
+              <Button variant="outline" onClick={exportICS}>Add to calendar</Button>
             </div>
           </CardBody>
         </Card>
@@ -255,12 +254,12 @@ export default function Itinerary() {
 
       {/* Timeline */}
       <Card className="mt-6">
-        <CardHeader title="Your Itinerary" />
+        <CardHeader title="Your itinerary" />
         <CardBody>
           {loading ? (
             <Loading />
           ) : !items || items.length === 0 ? (
-            <div className="text-sm text-neutral-600">No items yet.</div>
+            <div className="text-sm text-neutral-600">Nothing planned yet. Add your first stop on the left.</div>
           ) : (
             <div className="relative">
               {/* timeline line */}

@@ -52,7 +52,7 @@ async function main() {
     timestamp: new Date(),
   })));
 
-  console.log(`✅ Seeded ${points.length} locations into safetyscores`);
+  console.log(`Seeded ${points.length} locations into safetyscores`);
   await mongoose.disconnect();
 }
 
