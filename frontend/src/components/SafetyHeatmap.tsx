@@ -72,6 +72,16 @@ function Recenter({ center }: { center: [number, number] }) {
   return null;
 }
 
+/* ---------------- Zoom to a set of points ----------------
+ * Used when there is no data near the user: show where the data actually is. */
+function FitToPoints({ points }: { points: [number, number][] | null }) {
+  const map = useMap();
+  useEffect(() => {
+    if (points && points.length) map.fitBounds(points, { padding: [40, 40], maxZoom: 10 });
+  }, [map, points]);
+  return null;
+}
+
 /* ---------------- Debug overlay ---------------- */
 function debugColor(score: number) {
   if (score >= 80) return "#1a9850"; // green
@@ -130,6 +140,10 @@ export default function SafetyHeatmap() {
 
   const [showDebug, setShowDebug] = useState(false);
 
+  // Bounds to zoom to when falling back to all areas (done once, so refreshes don't move the map)
+  const [fitTo, setFitTo] = useState<[number, number][] | null>(null);
+  const fittedOnce = useRef(false);
+
   // Load scores near the user (MongoDB $near), or every area if we have no location.
   // `v` is a cache-buster so refreshes always hit the server.
   const loadData = useCallback(async () => {
@@ -147,11 +161,16 @@ export default function SafetyHeatmap() {
       }
       const r = await fetch(`${API}/safety-scores?v=${v}`);
       const data = await r.json();
-      setPoints(Array.isArray(data) ? data : []);
+      const all: ScorePoint[] = Array.isArray(data) ? data : [];
+      setPoints(all);
+      if (all.length && !fittedOnce.current) {
+        fittedOnce.current = true;
+        setFitTo(all.map((p) => [p.lat, p.lng] as [number, number]));
+      }
       setStatus(
         c
-          ? `No data within ${RADIUS_KM} km of you — showing all ${Array.isArray(data) ? data.length : 0} areas`
-          : `Location unavailable — showing all ${Array.isArray(data) ? data.length : 0} areas`
+          ? `No data within ${RADIUS_KM} km of you — showing all ${all.length} areas`
+          : `Location unavailable — showing all ${all.length} areas`
       );
     } catch {
       setStatus("Could not load safety data (is the backend running?)");
@@ -260,6 +279,7 @@ export default function SafetyHeatmap() {
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
         <Recenter center={center} />
+        <FitToPoints points={fitTo} />
         <HeatLayer points={points} />
         <DebugOverlay points={points} show={showDebug} />
         {userPos && (

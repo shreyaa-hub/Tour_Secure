@@ -32,7 +32,7 @@ cd backend
 cp .env.example .env          # set MONGO_URI and JWT_SECRET
 npm install
 npm run seed:safety           # 25 safety-score areas (North-East India)
-ADMIN_EMAIL=you@example.com ADMIN_PASSWORD='choose-a-password' npm run seed:demo   # risk zones + admin user
+ADMIN_EMAIL=you@example.com ADMIN_PASSWORD='choose-a-password' npm run seed:demo   # risk zones, Chennai-region areas, admin user
 npm run dev                   # http://localhost:4000/api/health
 
 # 2. Frontend (new terminal)
@@ -44,7 +44,7 @@ npm run dev                   # http://localhost:5173
 
 Notes:
 - Geolocation only works on `localhost` or HTTPS.
-- The seeded data is in North-East India. To demo from elsewhere, override your location in Chrome DevTools → Sensors (e.g. Guwahati `26.1445, 91.7362`, or the high-risk demo zone at `26.179, 91.752`), or deny location to see all areas.
+- Sample data covers North-East India (`seed:safety`) and the Chennai region (`seed:demo`). Elsewhere, the heatmap zooms out to show all areas. To demo a specific spot, override your location in Chrome DevTools → Sensors (e.g. the high-risk zones at Paltan Bazaar `26.179, 91.752` or Chennai Central `13.0827, 80.2757`).
 - Map tiles load from OpenStreetMap, so the browser needs internet access.
 
 ## Main API
