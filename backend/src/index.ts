@@ -1,5 +1,8 @@
 // backend/src/index.ts
-import express from "express";
+import express, { type Request, type Response, type NextFunction } from "express";
+// Forwards rejected promises from async route handlers to the error middleware
+// (Express 4 does not do this on its own; without it, one bad request crashes the process).
+import "express-async-errors";
 import cors from "cors";
 import morgan from "morgan";
 import cookieParser from "cookie-parser";
@@ -13,7 +16,6 @@ import adminRoutes from "./routes/admin.routes";
 import userWalletRouter from "./routes/userWallet.routes";
 import efirRouter from "./routes/efir.routes";
 import geoRouter from "./routes/geo.routes";
-import miscRouter from "./routes/misc.routes";
 import digitalIdRouter from "./routes/digitalId";
 import safetyRouter from "./routes/safety.routes";
 import reviewsRouter from "./routes/reviews.routes";
@@ -46,7 +48,7 @@ async function start() {
       origin: origins.length ? origins : false,
       credentials: true,
       methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-      allowedHeaders: ["Content-Type", "Authorization", "X-Access-Token"],
+      allowedHeaders: ["Content-Type", "Authorization", "X-Access-Token", "Cache-Control"],
       exposedHeaders: ["Set-Cookie"],
     })
   );
@@ -60,7 +62,6 @@ async function start() {
 
   // ---- Routes ----
   app.use("/api/geo", geoRouter);
-  app.use("/api", miscRouter); // legacy misc endpoints
   app.use("/api/auth", authRoutes);
   app.use("/api/alerts", alertsRoutes);
   app.use("/api/admin", adminRoutes);
@@ -75,6 +76,19 @@ async function start() {
   if (env.NODE_ENV !== "production") {
     app.use("/api/debug", debugRouter);
   }
+
+  // ---- 404 for unknown API routes ----
+  app.use("/api", (_req, res) => res.status(404).json({ error: "Not found" }));
+
+  // ---- Error handler (must be last) ----
+  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+    // Invalid ObjectId / bad types / schema validation are client errors
+    if (err?.name === "CastError" || err?.name === "ValidationError") {
+      return res.status(400).json({ error: "Invalid request", details: err.message });
+    }
+    console.error("Unhandled error:", err);
+    return res.status(500).json({ error: "Internal Server Error" });
+  });
 
   // ---- DB then listen ----
   await connectMongo();

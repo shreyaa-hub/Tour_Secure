@@ -8,7 +8,8 @@
     "dev": "ts-node-dev --respawn --transpile-only -r dotenv/config src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "seed:safety": "ts-node -r dotenv/config scripts/seedSafety.ts"
+    "seed:safety": "ts-node -r dotenv/config scripts/seedSafety.ts",
+    "seed:demo": "ts-node --transpile-only -r dotenv/config scripts/seedDemo.ts"
   },
   "dependencies": {
     "bcryptjs": "^3.0.2",
@@ -17,6 +18,7 @@
     "dotenv": "^16.4.5",
     "ethers": "^6.15.0",
     "express": "^4.21.2",
+    "express-async-errors": "^3.1.1",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.18.2",
     "morgan": "^1.10.1",

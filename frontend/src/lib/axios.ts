@@ -43,4 +43,3 @@ api.interceptors.response.use(
     return Promise.reject(error);
   }
 );
-console.log("API baseURL:", api.defaults.baseURL);

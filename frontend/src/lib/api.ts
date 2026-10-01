@@ -1,9 +1,9 @@
 // frontend/src/lib/api.ts
-export const API_URL = import.meta.env.VITE_API_URL as string;
-// Back-compat for pages that import { API_BASE }
-export const API_BASE =
-  import.meta.env.VITE_API_BASE || "http://localhost:4000/api";
-
+// Single source of truth for the API base URL (must include the /api suffix).
+export const API_BASE: string =
+  import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_URL || "http://localhost:4000/api";
+// Back-compat for modules that import { API_URL }
+export const API_URL = API_BASE;
 
 async function handle<T>(res: Response): Promise<T> {
   if (!res.ok) {
@@ -14,10 +14,13 @@ async function handle<T>(res: Response): Promise<T> {
   return res.json();
 }
 
-export const get = async <T>(p: string) => handle<T>(await fetch(`${API_URL}${p}`));
+// credentials: "include" sends the httpOnly session cookie (needed for admin-only calls)
+export const get = async <T>(p: string) =>
+  handle<T>(await fetch(`${API_BASE}${p}`, { credentials: "include" }));
 export const post = async <T, B=unknown>(p: string, body?: B) =>
-  handle<T>(await fetch(`${API_URL}${p}`, {
+  handle<T>(await fetch(`${API_BASE}${p}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
+    credentials: "include",
     body: body ? JSON.stringify(body) : undefined,
   }));

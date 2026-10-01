@@ -9,7 +9,8 @@ import Badge from "@/components/ui/Badge";
 import Loading from "@/components/ui/Loading";
 import { useToast } from "@/components/ui/Toast";
 import { MapPin } from "lucide-react";
-import SafetyHeatmap from "@/components/SafetyHeatmap"; // ✅ NEW
+import SafetyHeatmap from "@/components/SafetyHeatmap";
+import { useAuth } from "@/context/AuthContext";
 
 type RiskLevel = "low" | "medium" | "high";
 type Zone = {
@@ -22,6 +23,8 @@ type Zone = {
 
 export default function Heatmap() {
   const { notify } = useToast();
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
 
   // lists
   const [zones, setZones] = useState<Zone[]>([]);
@@ -181,7 +184,7 @@ export default function Heatmap() {
 
       {/* ✅ NEW: AI Safety Score Heat Map (GPS + Search) */}
       <div className="mt-6">
-        <div className="section-title mb-2">AI Safety Score Heat Map</div>
+        <div className="section-title mb-2">Safety Score Heat Map</div>
         <SafetyHeatmap />
       </div>
 
@@ -264,10 +267,15 @@ export default function Heatmap() {
           </CardBody>
         </Card>
 
-        {/* Create zone */}
+        {/* Create zone (admin only — also enforced by the API) */}
         <Card>
           <CardHeader title="Add Zone (Admin)" />
           <CardBody>
+            {!isAdmin ? (
+              <p className="text-sm text-neutral-600">
+                Only administrators can define risk zones. Log in with an admin account to add one.
+              </p>
+            ) : (
             <form onSubmit={onCreate} className="space-y-4">
               <div className="flex flex-wrap gap-3">
                 <Input className="w-56" placeholder="Name" value={name} onChange={e => setName(e.target.value)} required />
@@ -304,6 +312,7 @@ export default function Heatmap() {
                 Tip: format is <code>lng,lat;lng,lat;…</code>. Use “Generate square” to get a valid polygon fast.
               </p>
             </form>
+            )}
           </CardBody>
         </Card>
       </div>

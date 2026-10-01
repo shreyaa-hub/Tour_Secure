@@ -14,10 +14,13 @@ import {
 } from "react";
 import "leaflet/dist/leaflet.css";
 import "leaflet.heat";
+import { API_BASE } from "@/lib/api";
 
 type ScorePoint = { name?: string; lat: number; lng: number; safety_score: number };
 
-const API = import.meta.env.VITE_API_URL ?? "http://localhost:4000/api";
+const API = API_BASE;
+// Search radius for the location-based query. The seeded dataset covers North-East India.
+const RADIUS_KM = 200;
 
 /* ---------------- Heat layer ---------------- */
 function HeatLayer({ points }: { points: ScorePoint[] }) {
@@ -38,10 +41,15 @@ function HeatLayer({ points }: { points: ScorePoint[] }) {
       if (layerRef.current) {
         map.removeLayer(layerRef.current);
       }
+      // weight = (100 - score) / 100, so less-safe areas glow hotter.
+      // leaflet.heat divides intensity by 2^(maxZoom - zoom); maxZoom 6 keeps
+      // full intensity at the regional zoom levels this map uses (6-12).
+      // `max: 0.6` makes a score of 40 or lower render fully red.
       layerRef.current = L.heatLayer(tuples, {
-        radius: 28,
-        blur: 18,
-        maxZoom: 16,
+        radius: 35,
+        blur: 20,
+        maxZoom: 6,
+        max: 0.6,
       }).addTo(map);
     })();
 
@@ -50,6 +58,17 @@ function HeatLayer({ points }: { points: ScorePoint[] }) {
     };
   }, [map, tuples]);
 
+  return null;
+}
+
+/* ---------------- Keep the map centred on `center` ----------------
+ * MapContainer only reads its `center` prop on first render, so later
+ * changes (GPS fix, search result) must be applied imperatively. */
+function Recenter({ center }: { center: [number, number] }) {
+  const map = useMap();
+  useEffect(() => {
+    map.setView(center, map.getZoom());
+  }, [map, center]);
   return null;
 }
 
@@ -99,69 +118,68 @@ function DebugOverlay({ points, show }: { points: ScorePoint[]; show: boolean })
 
 /* ---------------- Main component ---------------- */
 export default function SafetyHeatmap() {
-  const [center, setCenter] = useState<[number, number]>([26.2, 92.94]); // default: Guwahati
+  const [center, setCenter] = useState<[number, number]>([26.1445, 91.7362]); // default: Guwahati
   const [points, setPoints] = useState<ScorePoint[]>([]);
   const [query, setQuery] = useState("");
   const [result, setResult] = useState<ScorePoint | null>(null);
 
-  const [useNearby, setUseNearby] = useState(false);
+  // user's position (null until the browser grants and returns a fix)
+  const [userPos, setUserPos] = useState<{ lat: number; lng: number } | null>(null);
   const coordsRef = useRef<{ lat: number; lng: number } | null>(null);
+  const [status, setStatus] = useState("Requesting your location…");
 
   const [showDebug, setShowDebug] = useState(false);
 
-  // loader (cache-bust with ?v=timestamp)
-  const loadData = useCallback(
-    async (cacheBuster?: number) => {
-      try {
-        const v = cacheBuster ?? 0;
-        const headers: HeadersInit = { "Cache-Control": "no-store" };
-
-        if (useNearby && coordsRef.current) {
-          const { lat, lng } = coordsRef.current;
-          const r = await fetch(
-            `${API}/safety-scores/nearby?lat=${lat}&lng=${lng}&radius=50&v=${v}`,
-            { headers }
-          );
-          const data = await r.json();
-          setPoints(Array.isArray(data) ? data : []);
-        } else {
-          const r = await fetch(`${API}/safety-scores?v=${v}`, { headers });
-          const data = await r.json();
-          setPoints(Array.isArray(data) ? data : []);
+  // Load scores near the user (MongoDB $near), or every area if we have no location.
+  // `v` is a cache-buster so refreshes always hit the server.
+  const loadData = useCallback(async () => {
+    try {
+      const c = coordsRef.current;
+      const v = Date.now();
+      if (c) {
+        const r = await fetch(`${API}/safety-scores/nearby?lat=${c.lat}&lng=${c.lng}&radius=${RADIUS_KM}&v=${v}`);
+        const data = await r.json();
+        if (Array.isArray(data) && data.length > 0) {
+          setPoints(data);
+          setStatus(`Showing ${data.length} areas within ${RADIUS_KM} km of you`);
+          return;
         }
-      } catch {
-        // ignore errors
       }
-    },
-    [useNearby]
-  );
+      const r = await fetch(`${API}/safety-scores?v=${v}`);
+      const data = await r.json();
+      setPoints(Array.isArray(data) ? data : []);
+      setStatus(
+        c
+          ? `No data within ${RADIUS_KM} km of you — showing all ${Array.isArray(data) ? data.length : 0} areas`
+          : `Location unavailable — showing all ${Array.isArray(data) ? data.length : 0} areas`
+      );
+    } catch {
+      setStatus("Could not load safety data (is the backend running?)");
+    }
+  }, []);
 
-  // Initial load: try GPS, fallback to all
+  // Initial load: ask for the user's location once, then load nearby (or all) areas
   useEffect(() => {
-    const loadAll = () => loadData(Date.now());
-
     if (!navigator.geolocation) {
-      loadAll();
+      loadData();
       return;
     }
-
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        const lat = pos.coords.latitude,
-          lng = pos.coords.longitude;
-        setCenter([lat, lng]);
-        coordsRef.current = { lat, lng };
-        setUseNearby(true);
-        loadData(Date.now());
+        const here = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        coordsRef.current = here;
+        setUserPos(here);
+        setCenter([here.lat, here.lng]);
+        loadData();
       },
-      () => loadAll(),
+      () => loadData(), // permission denied / timeout → show all areas
       { enableHighAccuracy: true, timeout: 8000 }
     );
   }, [loadData]);
 
   // 🔁 Listen: refresh heatmap when reviews are submitted
   useEffect(() => {
-    const handler = () => loadData(Date.now());
+    const handler = () => loadData();
     window.addEventListener("heatmap:refresh", handler);
     return () => window.removeEventListener("heatmap:refresh", handler);
   }, [loadData]);
@@ -169,9 +187,7 @@ export default function SafetyHeatmap() {
   // 🔁 Also refresh when tab regains focus
   useEffect(() => {
     const onVisible = () => {
-      if (document.visibilityState === "visible") {
-        loadData(Date.now());
-      }
+      if (document.visibilityState === "visible") loadData();
     };
     document.addEventListener("visibilitychange", onVisible);
     window.addEventListener("focus", onVisible);
@@ -184,7 +200,7 @@ export default function SafetyHeatmap() {
   // search handler
   const onSearch = () => {
     if (!query.trim()) return;
-    fetch(`${API}/safety-scores/search?q=${encodeURIComponent(query)}`)
+    fetch(`${API}/safety-scores/search?q=${encodeURIComponent(query.trim())}`)
       .then((r) => r.json())
       .then((data) => {
         if (data?.message || !Array.isArray(data) || data.length === 0) {
@@ -208,7 +224,7 @@ export default function SafetyHeatmap() {
   };
 
   return (
-    <div className="relative h-[100dvh] w-full">
+    <div className="relative h-[70vh] min-h-[420px] w-full rounded-xl overflow-hidden border">
       {/* Search bar */}
       <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[1000] bg-white shadow rounded-xl overflow-hidden flex">
         <input
@@ -243,8 +259,18 @@ export default function SafetyHeatmap() {
           attribution="&copy; OpenStreetMap"
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
+        <Recenter center={center} />
         <HeatLayer points={points} />
         <DebugOverlay points={points} show={showDebug} />
+        {userPos && (
+          <CircleMarker
+            center={[userPos.lat, userPos.lng]}
+            radius={8}
+            pathOptions={{ color: "#fff", weight: 3, fillColor: "#2563eb", fillOpacity: 1 }}
+          >
+            <Popup>You are here</Popup>
+          </CircleMarker>
+        )}
       </MapContainer>
 
       {/* Legend + controls */}
@@ -264,8 +290,9 @@ export default function SafetyHeatmap() {
           <span>Debug: Points & Scores</span>
         </label>
 
+        <div className="text-xs text-neutral-600 max-w-[220px]" role="status">{status}</div>
         <button
-          onClick={() => loadData(Date.now())}
+          onClick={() => loadData()}
           className="mt-1 w-full rounded-md bg-neutral-900 text-white px-3 py-1"
           title="Force refresh the heatmap"
         >

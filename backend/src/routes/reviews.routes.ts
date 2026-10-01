@@ -23,45 +23,29 @@ function pickPlaceName(body: any) {
   );
 }
 
-async function findOrCreateArea(name: string) {
-  const q = clean(name);
+function escapeRegex(s: string) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/** Match a review's place name to a known SafetyScore area (exact → starts-with → contains).
+ *  Returns null if the place is unknown; the review is still stored with its name. */
+async function findArea(name: string) {
+  const q = escapeRegex(clean(name));
   if (!q) return null;
-
-  // exact match
-  let doc = await SafetyScore.findOne({ name: { $regex: `^${q}$`, $options: "i" } });
-  if (doc) return doc;
-
-  // starts-with
-  doc = await SafetyScore.findOne({ name: { $regex: `^${q}[,\\s]?.*`, $options: "i" } });
-  if (doc) return doc;
-
-  // contains
-  doc = await SafetyScore.findOne({ name: { $regex: q, $options: "i" } });
-  if (doc) return doc;
-
-  // auto-create new SafetyScore if not found
-  return SafetyScore.create({
-    name: q,
-    ratingCount: 0,
-    ratingSum: 0,
-    sentiment: 0,
-    infraScore: 50,
-    crimeRate: 50,
-  });
+  return (
+    (await SafetyScore.findOne({ name: { $regex: `^${q}$`, $options: "i" } })) ||
+    (await SafetyScore.findOne({ name: { $regex: `^${q}`, $options: "i" } })) ||
+    (await SafetyScore.findOne({ name: { $regex: q, $options: "i" } }))
+  );
 }
 
 function toClientReview(r: any) {
   // normalize a single reliable field for UI
-  const placeName =
-    r?.areaName ||
-    (typeof r?.area === "object" && r?.area?.name) ||
-    null;
-
   return {
     id: String(r._id),
-    areaId: r?.area ? String(r.area._id ?? r.area) : null,
+    areaId: r?.areaId ? String(r.areaId) : null,
     areaName: r?.areaName ?? null,
-    placeName, // <- UI should read this
+    placeName: r?.areaName ?? null, // <- UI should read this
     rating: r.rating,
     text: r.text || "",
     createdAt: r.createdAt,
@@ -90,13 +74,13 @@ router.post("/", requireAuth, async (req: AuthedRequest, res, next) => {
       return res.status(400).json({ error: "Rating must be between 1 and 5." });
     }
 
-    // resolve or create area
+    // resolve area (by id, or by matching the place name)
     let areaDoc: any = null;
     if (areaIdRaw) {
       areaDoc = await SafetyScore.findById(areaIdRaw);
       if (!areaDoc) return res.status(404).json({ error: "Area not found for areaId." });
     } else {
-      areaDoc = await findOrCreateArea(nameRaw);
+      areaDoc = await findArea(nameRaw);
     }
 
     // current user (from requireAuth)
@@ -105,18 +89,16 @@ router.post("/", requireAuth, async (req: AuthedRequest, res, next) => {
 
     // create review (store denormalized areaName + author info)
     const reviewDoc = await Review.create({
-      area: areaDoc?._id,                 // NOTE: field name matches your schema
+      areaId: areaDoc?._id ?? null,
       areaName: areaDoc?.name ?? nameRaw, // <- ALWAYS saved
       rating,
       text,
       userId: user.id,                    // NEW
       userName,                           // NEW
-      createdAt: new Date(),
     });
 
-    // recompute area safety
-    const recomputeKey = areaDoc?.name ?? nameRaw;
-    await recomputeAreaFromReviews(recomputeKey);
+    // recompute review stats for a known area
+    if (areaDoc) await recomputeAreaFromReviews(String(areaDoc._id));
 
     // fetch updated area for payload
     const refreshed = areaDoc?._id ? await SafetyScore.findById(areaDoc._id) : null;
@@ -158,15 +140,10 @@ router.get("/", async (req, res, next) => {
     const limit = Math.min(200, Math.max(1, Number(req.query.limit ?? 50)));
 
     const filter: any = {};
-    if (areaId) filter.area = areaId;
-    if (areaName) filter.areaName = new RegExp(`^${areaName}$`, "i");
+    if (areaId) filter.areaId = areaId;
+    if (areaName) filter.areaName = new RegExp(`^${escapeRegex(areaName)}$`, "i");
 
-    // populate area so we can fallback to area.name if areaName missing
-    const items = await Review.find(filter)
-      .sort({ createdAt: -1 })
-      .limit(limit)
-      .populate({ path: "area", select: "name" }) // only need name
-      .lean();
+    const items = await Review.find(filter).sort({ createdAt: -1 }).limit(limit).lean();
 
     // normalize each review for UI
     const reviews = items.map(toClientReview);

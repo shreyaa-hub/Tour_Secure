@@ -1,6 +1,6 @@
 // frontend/src/pages/Auth.tsx
 import { useState } from "react";
-import { useNavigate, useLocation, NavLink } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Card, CardHeader, CardBody } from "@/components/ui/Card";
 import Input from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
@@ -31,24 +31,11 @@ function Login({ onSwitch }: { onSwitch: () => void }) {
     e.preventDefault();
     setBusy(true);
     try {
-      // baseURL must be http://localhost:4000/api (see VITE_API_BASE)
-      console.log("LOGIN →", {
-        baseURL: api.defaults.baseURL,
-        url: "/auth/login",
-        email,
-      });
       await api.post("/auth/login", { email, password });
       await refresh();
       const to = (loc.state as any)?.from?.pathname || "/digital-id";
       nav(to, { replace: true });
     } catch (e: any) {
-      console.log("LOGIN ERROR", {
-        baseURL: e?.config?.baseURL,
-        url: e?.config?.url,
-        method: e?.config?.method,
-        status: e?.response?.status,
-        data: e?.response?.data,
-      });
       const msg =
         e?.response?.data?.error ||
         (e?.response?.status === 404 ? "Endpoint not found (check VITE_API_BASE and path)" : null) ||
@@ -82,10 +69,7 @@ function Login({ onSwitch }: { onSwitch: () => void }) {
               required
               autoComplete="current-password"
             />
-            <div className="flex items-center justify-between">
-              <NavLink to="/reset" className="text-sm underline">
-                Forgot password?
-              </NavLink>
+            <div className="flex items-center justify-end">
               <Button type="submit" disabled={busy}>
                 {busy ? "Signing in…" : "Sign in"}
               </Button>
@@ -124,31 +108,18 @@ function Signup({ onSwitch }: { onSwitch: () => void }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState<"user" | "admin">("user");
   const [busy, setBusy] = useState(false);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
     try {
-      console.log("REGISTER →", {
-        baseURL: api.defaults.baseURL,
-        url: "/auth/register",
-        email,
-        role,
-      });
-      await api.post("/auth/register", { name, email, password, role });
+      // New accounts are always role "user"; admins are promoted server-side (npm run seed:demo).
+      await api.post("/auth/register", { name, email, password });
       await refresh();
       const to = (loc.state as any)?.from?.pathname || "/digital-id";
       nav(to, { replace: true });
     } catch (e: any) {
-      console.log("REGISTER ERROR", {
-        baseURL: e?.config?.baseURL,
-        url: e?.config?.url,
-        method: e?.config?.method,
-        status: e?.response?.status,
-        data: e?.response?.data,
-      });
       const msg =
         e?.response?.data?.error ||
         (e?.response?.status === 404 ? "Endpoint not found (check VITE_API_BASE and path)" : null) ||
@@ -189,28 +160,6 @@ function Signup({ onSwitch }: { onSwitch: () => void }) {
               required
               autoComplete="new-password"
             />
-
-            <div className="text-sm">
-              Role:
-              <label className="ml-3 mr-2">
-                <input
-                  type="radio"
-                  name="role"
-                  checked={role === "user"}
-                  onChange={() => setRole("user")}
-                />{" "}
-                User
-              </label>
-              <label>
-                <input
-                  type="radio"
-                  name="role"
-                  checked={role === "admin"}
-                  onChange={() => setRole("admin")}
-                />{" "}
-                Admin
-              </label>
-            </div>
 
             <div className="flex items-center justify-between">
               <button type="button" onClick={onSwitch} className="text-sm underline">

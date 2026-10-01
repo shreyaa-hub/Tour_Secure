@@ -117,6 +117,19 @@ export async function requireAuth(req: AuthedRequest, res: Response, next: NextF
   return next();
 }
 
+/**
+ * requireAdmin
+ * -------------
+ * Must run after requireAuth. The role comes from the database (loaded in
+ * requireAuth), not from the JWT payload, so a demoted admin loses access
+ * immediately instead of when their token expires.
+ */
+export function requireAdmin(req: AuthedRequest, res: Response, next: NextFunction) {
+  if (!req.user) return res.status(401).json({ error: "Unauthorized" });
+  if (req.user.role !== "admin") return res.status(403).json({ error: "Forbidden" });
+  return next();
+}
+
 /* -------------------- Optional: Type augmentation for Express -------------------- */
 /* If your TS setup complains about req.user not existing on Request, keep this. */
 declare module "express-serve-static-core" {

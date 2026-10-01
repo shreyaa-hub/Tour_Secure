@@ -106,7 +106,7 @@ export default function AppLayout() {
       </a>
 
       {/* Header */}
-      <header className="sticky top-0 z-30 border-b bg-white/80 backdrop-blur">
+      <header className="sticky top-0 z-[2000] border-b bg-white/80 backdrop-blur">
         <div className="max-w-6xl mx-auto px-6 py-3 flex items-center gap-4">
           {/* Mobile menu button */}
           <button

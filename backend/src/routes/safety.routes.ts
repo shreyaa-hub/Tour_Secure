@@ -63,8 +63,9 @@ router.get("/nearby", async (req, res, next) => {
 /** GET /api/safety-scores/search?q=Shillong */
 router.get("/search", async (req, res, next) => {
   try {
-    const q = (req.query.q as string | undefined)?.trim();
-    if (!q) return res.status(400).json({ error: "q is required" });
+    const raw = (req.query.q as string | undefined)?.trim();
+    if (!raw) return res.status(400).json({ error: "q is required" });
+    const q = raw.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); // treat user input literally
 
     // exact → starts-with → contains
     const exact = await SafetyScore.find({ name: { $regex: `^${q}$`, $options: "i" } }).limit(10);

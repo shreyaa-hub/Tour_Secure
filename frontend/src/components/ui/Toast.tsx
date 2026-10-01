@@ -30,7 +30,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
       <div id="toast-live" className="sr-live" aria-live="polite" />
 
       {/* container */}
-      <div className="fixed right-4 bottom-4 z-[100] space-y-3 w-[min(90vw,360px)]">
+      <div className="fixed right-4 bottom-4 z-[3000] space-y-3 w-[min(90vw,360px)]">
         {items.map(t => (
           <ToastItem key={t.id} t={t} onClose={() => setItems(s => s.filter(x => x.id !== t.id))} />
         ))}

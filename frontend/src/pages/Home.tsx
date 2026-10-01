@@ -8,8 +8,11 @@ import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import { Card, CardHeader, CardBody } from "@/components/ui/Card";
 import { useToast } from "@/components/ui/Toast";
+import { useAuth } from "@/context/AuthContext";
 
 type Coords = { lat: number; lng: number };
+// Where the current coordinates came from (sent with an SOS so responders know how reliable they are)
+type CoordsSource = "default" | "gps" | "manual";
 type RiskLevel = "low" | "medium" | "high";
 type RiskResp = {
   inside: boolean;
@@ -29,10 +32,12 @@ type Zone = {
 export default function Home() {
   const status = useHealth();
   const { notify } = useToast();
+  const { user } = useAuth();
 
-  // location state
+  // location state (default until the browser returns a fix)
   const [coords, setCoords] = useState<Coords>({ lat: 13.0827, lng: 80.2707 });
   const [manual, setManual] = useState<Coords>({ lat: 13.0827, lng: 80.2707 });
+  const [coordsSource, setCoordsSource] = useState<CoordsSource>("default");
 
   // risk + zones
   const [risk, setRisk] = useState<RiskResp | null>(null);
@@ -42,17 +47,32 @@ export default function Home() {
   // SOS countdown
   const [arming, setArming] = useState(false);
   const [seconds, setSeconds] = useState(5);
-  const timerRef = useRef<number | null>(null);
+  const [sending, setSending] = useState(false);
+  const askedLocation = useRef(false); // ask once (React StrictMode mounts effects twice in dev)
 
-  // get browser location on mount
+  // get browser location on mount (the browser shows its permission prompt here)
   useEffect(() => {
-    if (!navigator.geolocation) return;
-    navigator.geolocation.getCurrentPosition((p) => {
-      const next = { lat: p.coords.latitude, lng: p.coords.longitude };
-      setCoords(next);
-      setManual(next);
-    });
-  }, []);
+    if (askedLocation.current) return;
+    askedLocation.current = true;
+    if (!navigator.geolocation) {
+      notify({ tone: "warning", message: "Geolocation is not supported; using a default location." });
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (p) => {
+        const next = { lat: p.coords.latitude, lng: p.coords.longitude };
+        setCoords(next);
+        setManual(next);
+        setCoordsSource("gps");
+      },
+      (err) =>
+        notify({
+          tone: "warning",
+          title: "Location unavailable",
+          message: `${err.message}. Using a default location — click "Use my location" to retry.`,
+        })
+    );
+  }, [notify]);
 
   // load zones once
   useEffect(() => {
@@ -109,52 +129,76 @@ export default function Home() {
         const next = { lat: p.coords.latitude, lng: p.coords.longitude };
         setCoords(next);
         setManual(next);
+        setCoordsSource("gps");
       },
       (err) => notify({ tone: "error", message: err.message })
     );
   }
 
-  // SOS arming/cancel/confirm
+  // ---- SOS: arm → 5 s cancellable countdown → send ----
   function armSOS() {
-    if (arming) return;
+    if (arming || sending) return;
+    if (!user) {
+      notify({ tone: "warning", title: "Login required", message: "Log in to send an SOS alert." });
+      return;
+    }
     setSeconds(5);
     setArming(true);
-    timerRef.current = window.setInterval(() => {
-      setSeconds((s) => {
-        if (s <= 1) {
-          clearIntervalIfAny();
-          confirmSOS();
-          return 0;
-        }
-        return s - 1;
-      });
-    }, 1000);
   }
 
   function cancelSOS() {
-    clearIntervalIfAny();
     setArming(false);
     notify({ tone: "info", title: "SOS Cancelled", message: "No alert was sent." });
   }
 
-  async function confirmSOS() {
-    setArming(false);
-    try {
-      // optional backend call; swallow errors if endpoint not present
-      await http.post(`${API_BASE}/alerts/panic`, { lat: coords.lat, lon: coords.lng }).catch(() => {});
-    } finally {
-      notify({
-        tone: "success",
-        title: "SOS Sent",
-        message: "Location shared with emergency contacts (demo).",
-      });
+  // Countdown: one timeout per second; cleanup cancels it on cancel/unmount.
+  useEffect(() => {
+    if (!arming) return;
+    if (seconds === 0) {
+      setArming(false);
+      void sendSOS();
+      return;
     }
+    const t = window.setTimeout(() => setSeconds((s) => s - 1), 1000);
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [arming, seconds]);
+
+  // Try for a fresh GPS fix; fall back to the last known coordinates.
+  function currentPosition(): Promise<{ coords: Coords; source: string }> {
+    const fallback = { coords, source: coordsSource === "gps" ? "last-known" : coordsSource };
+    if (!navigator.geolocation) return Promise.resolve(fallback);
+    return new Promise((resolve) =>
+      navigator.geolocation.getCurrentPosition(
+        (p) => resolve({ coords: { lat: p.coords.latitude, lng: p.coords.longitude }, source: "gps" }),
+        () => resolve(fallback),
+        { enableHighAccuracy: true, timeout: 5000, maximumAge: 30000 }
+      )
+    );
   }
 
-  function clearIntervalIfAny() {
-    if (timerRef.current) {
-      window.clearInterval(timerRef.current);
-      timerRef.current = null;
+  async function sendSOS() {
+    setSending(true);
+    try {
+      const { coords: here, source } = await currentPosition();
+      await http.post(`${API_BASE}/alerts/panic`, { lat: here.lat, lon: here.lng, locationSource: source });
+      notify({
+        tone: "success",
+        title: "SOS alert recorded",
+        message: `Location ${here.lat.toFixed(5)}, ${here.lng.toFixed(5)} (${source}) saved and visible to admins.`,
+      });
+    } catch (e: any) {
+      const status = e?.response?.status;
+      notify({
+        tone: "error",
+        title: "SOS failed",
+        message:
+          status === 401
+            ? "Your session expired. Please log in again."
+            : e?.response?.data?.error || "Could not reach the server. Call local emergency services directly.",
+      });
+    } finally {
+      setSending(false);
     }
   }
 
@@ -217,20 +261,22 @@ export default function Home() {
                     setManual((s) => ({ ...s, lng: parseFloat(e.target.value || "0") }))
                   }
                 />
-                <Button onClick={() => setCoords(manual)}>Update point</Button>
+                <Button onClick={() => { setCoords(manual); setCoordsSource("manual"); }}>Update point</Button>
               </div>
             </div>
           </CardBody>
         </Card>
 
         <Card>
-          <CardHeader title="Your Safety Score" actions={<Shield size={18} className="text-neutral-400" />} />
+          <CardHeader title="Zone Risk at Your Location" actions={<Shield size={18} className="text-neutral-400" />} />
           <CardBody>
             <div className="flex items-end gap-4">
               <div className="text-5xl font-extrabold leading-none">{busy ? "…" : score}</div>
               <div className={`text-sm font-semibold ${levelColor}`}>{busy ? "" : level.toUpperCase()}</div>
             </div>
-            <div className="mt-1 text-xs text-neutral-500">Zone: {zoneName}</div>
+            <div className="mt-1 text-xs text-neutral-500">
+              Zone: {zoneName} · location: {coordsSource === "gps" ? "GPS" : coordsSource}
+            </div>
 
             <div className="mt-4 h-2 w-full rounded-full bg-neutral-200 overflow-hidden">
               <div
@@ -263,12 +309,18 @@ export default function Home() {
               before:absolute before:inset-0 before:rounded-full before:animate-ping before:bg-red-400/30
             "
             aria-label="SOS panic button"
+            disabled={sending}
           >
             <span className="relative z-10 inline-flex items-center gap-2">
               <AlertTriangle size={28} /> SOS
             </span>
 
-            {/* countdown overlay */}
+            {/* countdown / sending overlay */}
+            {sending && (
+              <span className="absolute inset-0 rounded-full bg-black/60 flex items-center justify-center z-20">
+                <span className="text-xl font-bold">Sending…</span>
+              </span>
+            )}
             {arming && (
               <span className="absolute inset-0 rounded-full bg-black/60 flex items-center justify-center z-20">
                 <span className="text-5xl font-bold">{seconds}</span>
@@ -285,7 +337,7 @@ export default function Home() {
             </div>
 
             <div className="mt-3 grid grid-cols-3 gap-3">
-              <Metric label="Score" value={busy ? "…" : String(score)} />
+              <Metric label="Risk score" value={busy ? "…" : String(score)} />
               <Metric label="Level" value={busy ? "…" : level} tone={level} />
               <Metric label="Zone" value={busy ? "…" : zoneName} />
             </div>

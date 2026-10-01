@@ -16,12 +16,12 @@ export async function recomputeAreaFromReviews(areaKey: string) {
   // Find area by id or by name
   const area = mongoose.isValidObjectId(key)
     ? await SafetyScore.findById(key)
-    : await SafetyScore.findOne({ name: { $regex: `^${key}$`, $options: "i" } });
+    : await SafetyScore.findOne({ name: { $regex: `^${escapeRegex(key)}$`, $options: "i" } });
 
   if (!area) return;
 
   const reviews = await Review.find({
-    $or: [{ area: area._id }, { areaName: { $regex: `^${area.name}$`, $options: "i" } }],
+    $or: [{ areaId: area._id }, { areaName: { $regex: `^${escapeRegex(area.name)}$`, $options: "i" } }],
   }).sort({ createdAt: -1 }).lean();
 
   if (!reviews.length) {
@@ -40,15 +40,11 @@ export async function recomputeAreaFromReviews(areaKey: string) {
     const ageDays = (now - new Date(r.createdAt).getTime()) / (1000 * 60 * 60 * 24);
     const recencyWeight = Math.max(0.3, 1 - ageDays / 180); // 6 months decay
 
-    // Sentiment boost from text
+    // Keyword sentiment boost from text (negative wins; word boundaries so "unsafe" ≠ "safe")
     const text = (r.text ?? "").toLowerCase();
     let sentimentBoost = 0;
-    if (text.includes("bad") || text.includes("unsafe") || text.includes("danger")) {
-      sentimentBoost = -0.5;
-    }
-    if (text.includes("good") || text.includes("safe") || text.includes("secure")) {
-      sentimentBoost = +0.2;
-    }
+    if (/\b(good|safe|secure)\b/.test(text)) sentimentBoost = +0.2;
+    if (/\b(bad|unsafe|danger|dangerous)\b/.test(text)) sentimentBoost = -0.5;
 
     weightedSum += (r.rating + sentimentBoost) * recencyWeight;
     weightTotal += recencyWeight;
@@ -83,4 +79,8 @@ export async function recomputeAreaFromReviews(areaKey: string) {
       },
     }
   );
+}
+
+function escapeRegex(s: string) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }

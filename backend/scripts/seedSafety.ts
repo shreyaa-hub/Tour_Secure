@@ -7,7 +7,7 @@ import SafetyScore from "../src/models/SafetyScore";
 const points = [
   { name: "Dibrugarh, Assam", lat: 27.4728, lng: 94.9120, crimeRate: 35, infraScore: 60, sentiment: 0.2 },
   { name: "Tinsukia, Assam", lat: 27.2950, lng: 94.5710, crimeRate: 40, infraScore: 55, sentiment: -0.1 },
-  { name: "Guwahati, Assam", lat: 26.2006, lng: 92.9376, crimeRate: 50, infraScore: 65, sentiment: 0.3 },
+  { name: "Guwahati, Assam", lat: 26.1445, lng: 91.7362, crimeRate: 50, infraScore: 65, sentiment: 0.3 },
   { name: "Dispur, Assam", lat: 26.1390, lng: 91.7882, crimeRate: 42, infraScore: 70, sentiment: 0.1 },
   { name: "Duliajan, Assam", lat: 27.4667, lng: 95.3167, crimeRate: 38, infraScore: 50, sentiment: -0.2 },
   { name: "Digboi, Assam", lat: 27.2500, lng: 94.5500, crimeRate: 55, infraScore: 45, sentiment: -0.3 },

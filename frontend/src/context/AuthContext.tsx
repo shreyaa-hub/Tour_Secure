@@ -7,6 +7,8 @@ type Status = "idle" | "loading" | "authenticated" | "unauthenticated";
 type AuthContextType = {
   user: Auth.User | null;
   status: Status;
+  /** true until the initial session check (/auth/me) has finished */
+  loading: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (name: string, email: string, password: string) => Promise<void>;
   refresh: () => Promise<void>;
@@ -54,11 +56,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setStatus("authenticated");
   };
 
+  // Re-check the session without flipping `loading` (which would unmount the app shell).
   const refresh = async () => {
-    setStatus("loading");
-    const u = await Auth.me();
-    setUser(u);
-    setStatus(u ? "authenticated" : "unauthenticated");
+    try {
+      const u = await Auth.me();
+      setUser(u);
+      setStatus(u ? "authenticated" : "unauthenticated");
+    } catch {
+      setUser(null);
+      setStatus("unauthenticated");
+    }
   };
 
   const logout = async () => {
@@ -67,9 +74,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setStatus("unauthenticated");
   };
 
+  const loading = status === "idle" || status === "loading";
+
   const value = useMemo(
-    () => ({ user, status, login, register, refresh, logout }),
-    [user, status]
+    () => ({ user, status, loading, login, register, refresh, logout }),
+    [user, status, loading]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
