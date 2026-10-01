@@ -30,7 +30,9 @@ function escapeRegex(s: string) {
 /** Match a review's place name to a known SafetyScore area (exact → starts-with → contains).
  *  Returns null if the place is unknown; the review is still stored with its name. */
 async function findArea(name: string) {
-  const q = escapeRegex(clean(name));
+  // Literal match, but tolerant of punctuation: "T Nagar" matches "T. Nagar, Tamil Nadu"
+  const q = escapeRegex(clean(name).replace(/[.,]/g, " ").replace(/\s+/g, " ").trim())
+    .replace(/ /g, "[\\s.,]*");
   if (!q) return null;
   return (
     (await SafetyScore.findOne({ name: { $regex: `^${q}$`, $options: "i" } })) ||

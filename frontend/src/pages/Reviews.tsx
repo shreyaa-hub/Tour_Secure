@@ -308,7 +308,9 @@ export default function Reviews() {
             {loading ? (
               <Loading />
             ) : filtered.length === 0 ? (
-              <div className="text-sm text-neutral-600">No reviews yet.</div>
+              <div className="text-sm text-neutral-600">
+                {items && items.length > 0 ? "No reviews match your search or rating filter." : "No reviews yet."}
+              </div>
             ) : (
               <>
                 <ul className="grid gap-3 sm:grid-cols-2">
