@@ -8,6 +8,9 @@ export interface SafetyScoreDoc extends Document {
   sentiment?: number;      // -1..+1 (from reviews)
   ratingCount?: number;
   ratingSum?: number;
+  // Computed from reviews by services/reviews.service.ts
+  reviewScore?: number | null;   // 0..100, recency- and sentiment-weighted
+  reviewTrend?: "improving" | "declining" | "stable";
   reviewUpdatedAt?: Date;
 }
 
@@ -22,6 +25,8 @@ const SafetyScoreSchema = new Schema<SafetyScoreDoc>({
   sentiment: { type: Number, default: 0 },
   ratingCount: { type: Number, default: 0 },
   ratingSum: { type: Number, default: 0 },
+  reviewScore: { type: Number, default: null },
+  reviewTrend: { type: String, enum: ["improving", "declining", "stable"], default: "stable" },
   reviewUpdatedAt: { type: Date },
 });
 SafetyScoreSchema.index({ loc: "2dsphere" });

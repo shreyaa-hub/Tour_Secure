@@ -1,6 +1,7 @@
 import { Router } from "express";
 import SafetyScore from "../models/SafetyScore";
-import { calculateSafety } from "../utils/safety";
+import { safetyOf } from "../utils/safety";
+import { looseNamePattern } from "../utils/search";
 
 const router = Router();
 
@@ -12,12 +13,13 @@ function toPoint(r: any) {
     name: r?.name ?? "Unknown",
     lat: typeof lat === "number" ? lat : 0,
     lng: typeof lng === "number" ? lng : 0,
-    safety_score: calculateSafety(r?.crimeRate ?? 50, r?.infraScore ?? 50, r?.sentiment ?? 0),
+    safety_score: safetyOf(r),
     _debug: {
       crimeRate: r?.crimeRate ?? 50,
       infraScore: r?.infraScore ?? 50,
       sentiment: r?.sentiment ?? 0,
       ratingCount: r?.ratingCount ?? 0,
+      reviewScore: r?.reviewScore ?? null,
     },
   };
 }
@@ -65,7 +67,8 @@ router.get("/search", async (req, res, next) => {
   try {
     const raw = (req.query.q as string | undefined)?.trim();
     if (!raw) return res.status(400).json({ error: "q is required" });
-    const q = raw.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); // treat user input literally
+    const q = looseNamePattern(raw); // literal, ignoring punctuation ("T Nagar" → "T. Nagar, …")
+    if (!q) return res.status(400).json({ error: "q is required" });
 
     // exact → starts-with → contains
     const exact = await SafetyScore.find({ name: { $regex: `^${q}$`, $options: "i" } }).limit(10);
@@ -95,7 +98,7 @@ router.get("/search", async (req, res, next) => {
         name: r.name,
         lat: r?.loc?.coordinates?.[1] ?? 0,
         lng: r?.loc?.coordinates?.[0] ?? 0,
-        safety_score: calculateSafety(r?.crimeRate ?? 50, r?.infraScore ?? 50, r?.sentiment ?? 0),
+        safety_score: safetyOf(r),
       }))
     );
   } catch (e) {

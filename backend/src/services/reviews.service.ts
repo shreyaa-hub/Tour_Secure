@@ -3,11 +3,11 @@ import Review from "../models/Review";
 import SafetyScore from "../models/SafetyScore";
 
 /**
- * Advanced algorithm:
- * - More weight to recent reviews
- * - Sentiment boost from text
- * - Confidence grows with number of reviews
- * - Trend (improving / declining / stable)
+ * Recompute an area's review score (0..100) from all of its reviews:
+ * - More weight to recent reviews (linear decay over 6 months, floor 0.3)
+ * - Keyword sentiment boost from the review text
+ * - Trend (improving / declining / stable): last 30 days vs older
+ * The result is blended into the area's safety score by utils/safety.ts.
  */
 export async function recomputeAreaFromReviews(areaKey: string) {
   const key = String(areaKey || "").trim();
@@ -27,7 +27,7 @@ export async function recomputeAreaFromReviews(areaKey: string) {
   if (!reviews.length) {
     await SafetyScore.updateOne(
       { _id: area._id },
-      { $set: { score: 50, confidence: 0, trend: "stable", ratingCount: 0, ratingSum: 0 } }
+      { $set: { reviewScore: null, reviewTrend: "stable", ratingCount: 0, ratingSum: 0 } }
     );
     return;
   }
@@ -44,7 +44,9 @@ export async function recomputeAreaFromReviews(areaKey: string) {
     const text = (r.text ?? "").toLowerCase();
     let sentimentBoost = 0;
     if (/\b(good|safe|secure)\b/.test(text)) sentimentBoost = +0.2;
-    if (/\b(bad|unsafe|danger|dangerous)\b/.test(text)) sentimentBoost = -0.5;
+    if (/\b(bad|unsafe|danger|dangerous)\b/.test(text) || /\bnot\s+(good|safe|secure)\b/.test(text)) {
+      sentimentBoost = -0.5;
+    }
 
     weightedSum += (r.rating + sentimentBoost) * recencyWeight;
     weightTotal += recencyWeight;
@@ -53,8 +55,6 @@ export async function recomputeAreaFromReviews(areaKey: string) {
   const avgRating = weightedSum / weightTotal; // 1..5
   const score = Math.max(0, Math.min(100, (avgRating - 1) / 4 * 100));
 
-  // Confidence: grows with number of reviews
-  const confidence = Math.min(1, Math.log10(reviews.length + 1) / 2);
 
   // Trend detection (compare last 30d vs older)
   const recent = reviews.filter(r => (now - new Date(r.createdAt).getTime()) < 30 * 86400000);
@@ -72,9 +72,8 @@ export async function recomputeAreaFromReviews(areaKey: string) {
       $set: {
         ratingCount: reviews.length,
         ratingSum: reviews.reduce((a, r) => a + r.rating, 0),
-        score,
-        confidence,
-        trend,
+        reviewScore: Math.round(score),
+        reviewTrend: trend,
         reviewUpdatedAt: new Date(),
       },
     }

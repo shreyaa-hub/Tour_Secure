@@ -3,7 +3,8 @@ import { Router } from "express";
 import SafetyScore from "../models/SafetyScore";
 import Review from "../models/Review";
 import { recomputeAreaFromReviews } from "../services/reviews.service";
-import { calculateSafety } from "../utils/safety";
+import { safetyOf } from "../utils/safety";
+import { escapeRegex, looseNamePattern } from "../utils/search";
 import { requireAuth, AuthedRequest } from "../middleware/requireAuth";
 
 const router = Router();
@@ -23,16 +24,10 @@ function pickPlaceName(body: any) {
   );
 }
 
-function escapeRegex(s: string) {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
 /** Match a review's place name to a known SafetyScore area (exact → starts-with → contains).
  *  Returns null if the place is unknown; the review is still stored with its name. */
 async function findArea(name: string) {
-  // Literal match, but tolerant of punctuation: "T Nagar" matches "T. Nagar, Tamil Nadu"
-  const q = escapeRegex(clean(name).replace(/[.,]/g, " ").replace(/\s+/g, " ").trim())
-    .replace(/ /g, "[\\s.,]*");
+  const q = looseNamePattern(clean(name)); // "T Nagar" matches "T. Nagar, Tamil Nadu"
   if (!q) return null;
   return (
     (await SafetyScore.findOne({ name: { $regex: `^${q}$`, $options: "i" } })) ||
@@ -99,7 +94,8 @@ router.post("/", requireAuth, async (req: AuthedRequest, res, next) => {
       userName,                           // NEW
     });
 
-    // recompute review stats for a known area
+    // recompute the area's review score (feeds into its safety score)
+    const previousScore = areaDoc ? safetyOf(areaDoc) : null;
     if (areaDoc) await recomputeAreaFromReviews(String(areaDoc._id));
 
     // fetch updated area for payload
@@ -112,11 +108,8 @@ router.post("/", requireAuth, async (req: AuthedRequest, res, next) => {
           lng: refreshed.loc?.coordinates?.[0] ?? 0,
           ratingCount: refreshed.ratingCount ?? 0,
           sentiment: refreshed.sentiment ?? 0,
-          safety_score: calculateSafety(
-            refreshed.crimeRate ?? 50,
-            refreshed.infraScore ?? 50,
-            refreshed.sentiment ?? 0
-          ),
+          previous_safety_score: previousScore,
+          safety_score: safetyOf(refreshed),
         }
       : null;
 

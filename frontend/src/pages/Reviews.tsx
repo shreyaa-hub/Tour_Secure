@@ -96,7 +96,12 @@ async function createReview(input: { place: string; rating: number; comment?: st
   });
 
   const raw = data?.review ?? data;
-  return toReviewUI(raw);
+  // `area` is the matched safety-score area (null if the place is not a known area)
+  const area = data?.area as
+    | { name: string; safety_score: number; previous_safety_score: number | null }
+    | null
+    | undefined;
+  return { review: toReviewUI(raw), area: area ?? null };
 }
 
 /* ---------- rating stars input ---------- */
@@ -210,7 +215,7 @@ export default function Reviews() {
     }
     try {
       setSubmitting(true);
-      const created = await createReview({
+      const { review: created, area } = await createReview({
         place: place.trim(),
         rating,
         comment: comment.trim() || undefined,
@@ -224,7 +229,15 @@ export default function Reviews() {
       setRating(5);
       setComment("");
       setPage(1);
-      notify({ tone: "success", title: "Thanks!", message: "Your review has been added." });
+      notify({
+        tone: "success",
+        title: "Thanks! Your review has been added.",
+        message: area
+          ? area.previous_safety_score != null && area.previous_safety_score !== area.safety_score
+            ? `${area.name} safety score: ${area.previous_safety_score} → ${area.safety_score}/100`
+            : `${area.name} safety score: ${area.safety_score}/100`
+          : `"${place.trim()}" isn't a known area yet, so no safety score changed.`,
+      });
     } catch (e: any) {
       const msg = e?.response?.data?.error || e?.message || "Failed to submit review";
       notify({ tone: "error", message: msg });
