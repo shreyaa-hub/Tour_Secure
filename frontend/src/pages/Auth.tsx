@@ -31,9 +31,12 @@ function Login({ onSwitch }: { onSwitch: () => void }) {
     e.preventDefault();
     setBusy(true);
     try {
-      await api.post("/auth/login", { email, password });
+      const { data } = await api.post("/auth/login", { email, password });
       await refresh();
-      const to = (loc.state as any)?.from?.pathname || "/digital-id";
+      // Back to the page that required login; otherwise admins land on their dashboard.
+      const to =
+        (loc.state as any)?.from?.pathname ||
+        (data?.user?.role === "admin" ? "/admin" : "/digital-id");
       nav(to, { replace: true });
     } catch (e: any) {
       const msg =
