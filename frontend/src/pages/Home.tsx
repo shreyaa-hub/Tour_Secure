@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { http } from '@/lib/http';
+import { Link } from "react-router-dom";
 import { AlertTriangle, MapPin, Activity, Shield } from "lucide-react";
 import { useHealth } from "@/hooks/useHealth";
 import { API_BASE } from "@/lib/api";
@@ -18,8 +19,17 @@ type RiskResp = {
   inside: boolean;
   riskLevel?: RiskLevel;
   riskScore?: number;
-  matchedZones?: { name: string }[];
+  matchedZones?: { name: string; description?: string }[];
 };
+
+// Places with sample data, so the app can be tried without travelling there
+const DEMO_PLACES: { label: string; lat: number; lng: number }[] = [
+  { label: "Chennai Central", lat: 13.0827, lng: 80.2757 },
+  { label: "T. Nagar Market", lat: 13.0418, lng: 80.2341 },
+  { label: "Adyar", lat: 13.0012, lng: 80.2565 },
+  { label: "Paltan Bazaar, Guwahati", lat: 26.179, lng: 91.752 },
+  { label: "Shillong", lat: 25.5788, lng: 91.8933 },
+];
 
 type Zone = {
   _id: string;
@@ -38,6 +48,7 @@ export default function Home() {
   const [coords, setCoords] = useState<Coords>({ lat: 13.0827, lng: 80.2707 });
   const [manual, setManual] = useState<Coords>({ lat: 13.0827, lng: 80.2707 });
   const [coordsSource, setCoordsSource] = useState<CoordsSource>("default");
+  const [placeLabel, setPlaceLabel] = useState<string | null>(null);
 
   // risk + zones
   const [risk, setRisk] = useState<RiskResp | null>(null);
@@ -64,6 +75,7 @@ export default function Home() {
         setCoords(next);
         setManual(next);
         setCoordsSource("gps");
+        setPlaceLabel(null);
       },
       (err) =>
         notify({
@@ -122,6 +134,14 @@ export default function Home() {
     [level]
   );
 
+  function tryPlace(p: { label: string; lat: number; lng: number }) {
+    const next = { lat: p.lat, lng: p.lng };
+    setCoords(next);
+    setManual(next);
+    setCoordsSource("manual");
+    setPlaceLabel(p.label);
+  }
+
   function useMyLocation() {
     if (!navigator.geolocation) return;
     navigator.geolocation.getCurrentPosition(
@@ -130,6 +150,7 @@ export default function Home() {
         setCoords(next);
         setManual(next);
         setCoordsSource("gps");
+        setPlaceLabel(null);
       },
       (err) => notify({ tone: "error", message: err.message })
     );
@@ -224,6 +245,41 @@ export default function Home() {
 
   return (
     <>
+      {/* Alert when the checked location is inside a risk zone */}
+      {!busy && risk?.inside && (
+        <div
+          role="alert"
+          className={`flex items-start gap-3 rounded-2xl border px-4 py-3 text-sm ${
+            level === "high"
+              ? "border-red-200 bg-red-50 text-red-800"
+              : level === "medium"
+              ? "border-amber-200 bg-amber-50 text-amber-800"
+              : "border-emerald-200 bg-emerald-50 text-emerald-800"
+          }`}
+        >
+          <AlertTriangle size={18} className="mt-0.5 shrink-0" />
+          <div>
+            <div className="font-semibold">
+              {level === "high" ? "High-risk area" : level === "medium" ? "Take care here" : "Low-risk area"}: {zoneName}
+            </div>
+            {risk.matchedZones?.[0]?.description ? <div>{risk.matchedZones[0].description}</div> : null}
+          </div>
+        </div>
+      )}
+
+      {/* How the app is meant to be used */}
+      <div className="grid gap-3 sm:grid-cols-3">
+        <HowStep n={1} title="Check where you are" to="/heatmap" link="Open the safety map">
+          See the risk at your location and which areas nearby are safer.
+        </HowStep>
+        <HowStep n={2} title="Plan and register your trip" to="/itinerary" link="Plan a trip">
+          Add your stops and get a trip ID with a QR code that police can scan.
+        </HowStep>
+        <HowStep n={3} title="Get help if something goes wrong" to="/efir" link="File a report">
+          Press SOS to share your location, or file an e-FIR for theft or harassment.
+        </HowStep>
+      </div>
+
       {/* TOP: Welcome + Your Safety Score */}
       <div className="grid gap-6 md:grid-cols-3">
         <Card className="md:col-span-2">
@@ -244,7 +300,7 @@ export default function Home() {
               <div className="flex flex-wrap items-center gap-2">
                 <MapPin size={16} />
                 <span>
-                  {coordsSource === "gps" ? "Your location" : coordsSource === "manual" ? "Checking" : "Default location"}:{" "}
+                  {coordsSource === "gps" ? "Your location" : coordsSource === "manual" ? `Checking${placeLabel ? ` ${placeLabel}` : ""}` : "Default location"}:{" "}
                   {coords.lat.toFixed(4)}, {coords.lng.toFixed(4)}
                 </span>
                 <Button variant="outline" className="ml-2" onClick={useMyLocation}>
@@ -274,7 +330,23 @@ export default function Home() {
                     setManual((s) => ({ ...s, lng: parseFloat(e.target.value || "0") }))
                   }
                 />
-                <Button onClick={() => { setCoords(manual); setCoordsSource("manual"); }}>Check</Button>
+                <Button onClick={() => { setCoords(manual); setCoordsSource("manual"); setPlaceLabel(null); }}>Check</Button>
+              </div>
+
+              <div className="text-xs text-neutral-500 mt-1">Or try a place with sample data</div>
+              <div className="flex flex-wrap gap-2">
+                {DEMO_PLACES.map((p) => (
+                  <button
+                    key={p.label}
+                    type="button"
+                    onClick={() => tryPlace(p)}
+                    className={`rounded-full border px-3 py-1 text-xs transition ${
+                      placeLabel === p.label ? "border-neutral-900 bg-neutral-900 text-white" : "hover:bg-neutral-100"
+                    }`}
+                  >
+                    {p.label}
+                  </button>
+                ))}
               </div>
             </div>
           </CardBody>
@@ -456,6 +528,19 @@ export default function Home() {
 }
 
 /* ---------- helpers ---------- */
+
+function HowStep({ n, title, to, link, children }: { n: number; title: string; to: string; link: string; children: React.ReactNode }) {
+  return (
+    <div className="rounded-2xl border bg-white p-4">
+      <div className="flex items-center gap-2">
+        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-neutral-900 text-xs font-semibold text-white">{n}</span>
+        <span className="font-medium">{title}</span>
+      </div>
+      <p className="mt-2 text-sm text-neutral-600">{children}</p>
+      <Link to={to} className="mt-2 inline-block text-sm font-medium text-blue-700 hover:underline">{link} →</Link>
+    </div>
+  );
+}
 
 function Metric({
   label,

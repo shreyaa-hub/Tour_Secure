@@ -3,7 +3,7 @@ import { Router } from "express";
 import SafetyScore from "../models/SafetyScore";
 import Review from "../models/Review";
 import { recomputeAreaFromReviews } from "../services/reviews.service";
-import { safetyOf } from "../utils/safety";
+import { safetyOf, breakdownOf } from "../utils/safety";
 import { escapeRegex, looseNamePattern } from "../utils/search";
 import { requireAuth, AuthedRequest } from "../middleware/requireAuth";
 
@@ -110,6 +110,7 @@ router.post("/", requireAuth, async (req: AuthedRequest, res, next) => {
           sentiment: refreshed.sentiment ?? 0,
           previous_safety_score: previousScore,
           safety_score: safetyOf(refreshed),
+          breakdown: breakdownOf(refreshed),
         }
       : null;
 

@@ -3,6 +3,7 @@ import {
   TileLayer,
   useMap,
   CircleMarker,
+  Polygon,
   Popup,
 } from "react-leaflet";
 import {
@@ -15,8 +16,12 @@ import {
 import "leaflet/dist/leaflet.css";
 import "leaflet.heat";
 import { API_BASE } from "@/lib/api";
+import { listZones, type Zone } from "@services/geofencing/geo";
+import ScoreBreakdown, { type Breakdown } from "@/components/ScoreBreakdown";
 
-type ScorePoint = { name?: string; lat: number; lng: number; safety_score: number };
+type ScorePoint = { name?: string; lat: number; lng: number; safety_score: number; breakdown?: Breakdown };
+
+const ZONE_COLORS: Record<string, string> = { high: "#dc2626", medium: "#d97706", low: "#059669" };
 
 const API = API_BASE;
 // Search radius for the location-based query. The seeded dataset covers North-East India.
@@ -64,10 +69,11 @@ function HeatLayer({ points }: { points: ScorePoint[] }) {
 /* ---------------- Keep the map centred on `center` ----------------
  * MapContainer only reads its `center` prop on first render, so later
  * changes (GPS fix, search result) must be applied imperatively. */
-function Recenter({ center }: { center: [number, number] }) {
+function Recenter({ center, zoom }: { center: [number, number]; zoom?: number }) {
   const map = useMap();
   useEffect(() => {
-    map.setView(center, map.getZoom());
+    map.setView(center, zoom ?? map.getZoom());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map, center]);
   return null;
 }
@@ -82,8 +88,8 @@ function FitToPoints({ points }: { points: [number, number][] | null }) {
   return null;
 }
 
-/* ---------------- Debug overlay ---------------- */
-function debugColor(score: number) {
+/* ---------------- Area markers (optional) ---------------- */
+function scoreColor(score: number) {
   if (score >= 80) return "#1a9850"; // green
   if (score >= 60) return "#66bd63";
   if (score >= 40) return "#fee08b";
@@ -91,7 +97,7 @@ function debugColor(score: number) {
   return "#d73027"; // red
 }
 
-function DebugOverlay({ points, show }: { points: ScorePoint[]; show: boolean }) {
+function AreaMarkers({ points, show }: { points: ScorePoint[]; show: boolean }) {
   if (!show) return null;
   return (
     <>
@@ -99,26 +105,40 @@ function DebugOverlay({ points, show }: { points: ScorePoint[]; show: boolean })
         <CircleMarker
           key={`${p.lat}-${p.lng}-${idx}`}
           center={[p.lat, p.lng]}
-          radius={6}
-          pathOptions={{
-            color: "#333",
-            fillColor: debugColor(p.safety_score),
-            fillOpacity: 0.9,
-            weight: 1,
-          }}
+          radius={7}
+          pathOptions={{ color: "#333", fillColor: scoreColor(p.safety_score), fillOpacity: 0.9, weight: 1 }}
         >
           <Popup>
-            <div style={{ minWidth: 160 }}>
-              <div style={{ fontWeight: 600, marginBottom: 4 }}>
-                {p.name || "Unnamed area"}
-              </div>
-              <div>
-                Safety score: <b>{p.safety_score}</b>/100
-              </div>
-            </div>
+            <div className="font-semibold mb-2">{p.name || "Unnamed area"}</div>
+            <ScoreBreakdown score={p.safety_score} breakdown={p.breakdown} />
           </Popup>
         </CircleMarker>
       ))}
+    </>
+  );
+}
+
+/* ---------------- Risk zones (polygons from the database) ---------------- */
+function ZoneLayer({ zones, show }: { zones: Zone[]; show: boolean }) {
+  if (!show) return null;
+  return (
+    <>
+      {zones.map((z) => {
+        const ring = z.polygon?.coordinates?.[0] ?? [];
+        const positions = ring.map(([lng, lat]) => [lat, lng] as [number, number]); // GeoJSON is [lng, lat]
+        const color = ZONE_COLORS[z.riskLevel] ?? "#6b7280";
+        return (
+          <Polygon key={z._id} positions={positions} pathOptions={{ color, weight: 2, fillColor: color, fillOpacity: 0.25 }}>
+            <Popup>
+              <div className="font-semibold">{z.name}</div>
+              <div className="text-xs mt-1" style={{ color }}>
+                {z.riskLevel.charAt(0).toUpperCase() + z.riskLevel.slice(1)} risk · score {z.riskScore}/100
+              </div>
+              {z.description ? <div className="text-xs mt-1 text-neutral-600">{z.description}</div> : null}
+            </Popup>
+          </Polygon>
+        );
+      })}
     </>
   );
 }
@@ -136,6 +156,13 @@ export default function SafetyHeatmap() {
   const [status, setStatus] = useState("Finding your location…");
 
   const [showDebug, setShowDebug] = useState(false);
+  const [zones, setZones] = useState<Zone[]>([]);
+  const [showZones, setShowZones] = useState(true);
+
+  // Risk zones are drawn on top of the heatmap
+  useEffect(() => {
+    listZones().then(setZones).catch(() => setZones([]));
+  }, []);
 
   // Bounds to zoom to when falling back to all areas (done once, so refreshes don't move the map)
   const [fitTo, setFitTo] = useState<[number, number][] | null>(null);
@@ -260,14 +287,25 @@ export default function SafetyHeatmap() {
 
       {/* Result card */}
       {result && (
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-[1000] bg-white/95 px-4 py-3 rounded-xl shadow text-center">
+        <div className="absolute left-4 bottom-4 z-[1000] bg-white/95 px-4 py-3 rounded-xl shadow max-w-[280px]">
+          <button
+            className="absolute top-1 right-2 text-neutral-400 hover:text-neutral-700"
+            onClick={() => setResult(null)}
+            aria-label="Close"
+          >
+            ×
+          </button>
           {result.name ? (
             <>
-              <div className="font-semibold">{result.name}</div>
-              <div className="text-sm">Safety score: {result.safety_score}/100</div>
+              <div className="font-semibold mb-2 pr-4">{result.name}</div>
+              {result.breakdown ? (
+                <ScoreBreakdown score={result.safety_score} breakdown={result.breakdown} />
+              ) : (
+                <div className="text-sm">Safety score: {result.safety_score}/100</div>
+              )}
             </>
           ) : (
-            <div className="text-sm">No matching area. Try another name.</div>
+            <div className="text-sm pr-4">No matching area. Try another name.</div>
           )}
         </div>
       )}
@@ -277,10 +315,11 @@ export default function SafetyHeatmap() {
           attribution="&copy; OpenStreetMap"
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
-        <Recenter center={center} />
+        <Recenter center={center} zoom={result?.name ? 13 : undefined} />
         <FitToPoints points={fitTo} />
         <HeatLayer points={points} />
-        <DebugOverlay points={points} show={showDebug} />
+        <ZoneLayer zones={zones} show={showZones} />
+        <AreaMarkers points={points} show={showDebug} />
         {userPos && (
           <CircleMarker
             center={[userPos.lat, userPos.lng]}
@@ -294,19 +333,29 @@ export default function SafetyHeatmap() {
 
       {/* Legend + controls */}
       <div className="absolute right-4 bottom-4 z-[1000] bg-white/90 rounded-xl p-3 shadow text-sm space-y-2">
-        <div className="font-semibold">Legend</div>
+        <div className="font-semibold">Heatmap</div>
         <div className="flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-red-500" /> Less safe</div>
         <div className="flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-emerald-500" /> Safer</div>
+
+        <div className="font-semibold pt-1">Risk zones</div>
+        <div className="flex items-center gap-3 text-xs">
+          {(["high", "medium", "low"] as const).map((lvl) => (
+            <span key={lvl} className="flex items-center gap-1">
+              <span className="h-3 w-3 rounded-sm border-2" style={{ borderColor: ZONE_COLORS[lvl], background: `${ZONE_COLORS[lvl]}40` }} />
+              {lvl.charAt(0).toUpperCase() + lvl.slice(1)}
+            </span>
+          ))}
+        </div>
 
         <div className="h-px bg-neutral-200 my-1" />
 
         <label className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            checked={showDebug}
-            onChange={(e) => setShowDebug(e.target.checked)}
-          />
-          <span>Show scores</span>
+          <input type="checkbox" checked={showZones} onChange={(e) => setShowZones(e.target.checked)} />
+          <span>Show risk zones</span>
+        </label>
+        <label className="flex items-center gap-2">
+          <input type="checkbox" checked={showDebug} onChange={(e) => setShowDebug(e.target.checked)} />
+          <span>Show area scores</span>
         </label>
 
         <div className="text-xs text-neutral-600 max-w-[220px]" role="status">{status}</div>

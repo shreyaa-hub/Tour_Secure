@@ -98,7 +98,7 @@ async function createReview(input: { place: string; rating: number; comment?: st
   const raw = data?.review ?? data;
   // `area` is the matched safety-score area (null if the place is not a known area)
   const area = data?.area as
-    | { name: string; safety_score: number; previous_safety_score: number | null }
+    | { name: string; safety_score: number; previous_safety_score: number | null; breakdown?: { reviewCount: number; reviewWeight: number } }
     | null
     | undefined;
   return { review: toReviewUI(raw), area: area ?? null };
@@ -233,9 +233,12 @@ export default function Reviews() {
         tone: "success",
         title: "Thanks for your review",
         message: area
-          ? area.previous_safety_score != null && area.previous_safety_score !== area.safety_score
-            ? `${area.name} safety score: ${area.previous_safety_score} → ${area.safety_score}/100`
-            : `${area.name} safety score: ${area.safety_score}/100`
+          ? (area.previous_safety_score != null && area.previous_safety_score !== area.safety_score
+              ? `${area.name} safety score: ${area.previous_safety_score} → ${area.safety_score}/100.`
+              : `${area.name} safety score: ${area.safety_score}/100.`) +
+            (area.breakdown?.reviewWeight
+              ? ` Reviews (${area.breakdown.reviewCount}) now make up ${area.breakdown.reviewWeight}% of it.`
+              : "")
           : `We don't have safety data for "${place.trim()}" yet, so no score changed.`,
       });
     } catch (e: any) {

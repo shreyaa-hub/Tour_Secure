@@ -110,7 +110,7 @@ async function main() {
       console.log(`Created admin user: ${email}`);
     }
   } else {
-    console.log("ℹ️  Skipped admin user (set ADMIN_EMAIL and ADMIN_PASSWORD to create one)");
+    console.log("Skipped admin user (set ADMIN_EMAIL and ADMIN_PASSWORD to create one)");
   }
 
   await mongoose.disconnect();

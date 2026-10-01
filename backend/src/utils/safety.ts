@@ -43,6 +43,25 @@ export function safetyOf(doc: any): number {
   });
 }
 
+/** The parts that make up an area's safety score, for showing "why" in the UI. */
+export function breakdownOf(doc: any) {
+  const crimeRate = doc?.crimeRate ?? 50;
+  const infraScore = doc?.infraScore ?? 50;
+  const sentiment = doc?.sentiment ?? 0;
+  const reviewCount = Number(doc?.ratingCount) || 0;
+  const reviewScore = typeof doc?.reviewScore === "number" ? doc.reviewScore : null;
+  return {
+    crimeRate,
+    infraScore,
+    sentiment,
+    baseScore: calculateSafety(crimeRate, infraScore, sentiment),
+    reviewCount,
+    reviewAverage: reviewCount ? Math.round(((Number(doc?.ratingSum) || 0) / reviewCount) * 10) / 10 : null,
+    reviewScore,
+    reviewWeight: reviewCount && reviewScore !== null ? Math.round(Math.min(0.6, reviewCount / (reviewCount + 3)) * 100) : 0,
+  };
+}
+
 function clamp(n: number, min: number, max: number) {
   return Math.min(max, Math.max(min, n));
 }

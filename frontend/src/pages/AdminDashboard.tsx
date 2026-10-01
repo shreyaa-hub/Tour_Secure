@@ -1,8 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { MapContainer, TileLayer, CircleMarker, Popup, useMap } from "react-leaflet";
 import { http } from "@/lib/http";
 import { Card, CardHeader, CardBody } from "@/components/ui/Card";
 import Loading from "@/components/ui/Loading";
 import Button from "@/components/ui/Button";
+import { useToast } from "@/components/ui/Toast";
+import StatusBadge from "@/components/StatusBadge";
 
 type Person = { _id: string; name?: string; email?: string } | string | null | undefined;
 type EFIR = { _id: string; name?: string; contact?: string; summary?: string; status?: string; createdAt: string; user?: Person };
@@ -21,7 +24,34 @@ function personLabel(p: Person) {
   return p.name ? `${p.name}${p.email ? ` (${p.email})` : ""}` : p.email || p._id;
 }
 
+const DAY = 24 * 60 * 60 * 1000;
+
+// Zoom the map so every alert is visible
+function FitAlerts({ points }: { points: [number, number][] }) {
+  const map = useMap();
+  const key = points.map((p) => p.join(",")).join("|");
+  useEffect(() => {
+    if (!points.length) return;
+    if (points.length === 1) map.setView(points[0], 13);
+    else map.fitBounds(points, { padding: [30, 30], maxZoom: 13 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key, map]);
+  return null;
+}
+
+function Stat({ label, value, tone }: { label: string; value: number | string; tone?: "red" | "amber" }) {
+  const c = tone === "red" ? "text-red-600" : tone === "amber" ? "text-amber-600" : "text-neutral-900";
+  return (
+    <div className="rounded-2xl border bg-white p-4">
+      <div className="text-xs text-neutral-500">{label}</div>
+      <div className={`mt-1 text-3xl font-bold ${c}`}>{value}</div>
+    </div>
+  );
+}
+
 export default function AdminDashboard() {
+  const { notify } = useToast();
+  const [savingId, setSavingId] = useState<string | null>(null);
   const [efirs, setEfirs] = useState<EFIR[] | null>(null);
   const [alerts, setAlerts] = useState<Alert[] | null>(null);
   const [busy, setBusy] = useState(false);
@@ -58,6 +88,26 @@ export default function AdminDashboard() {
     return () => clearInterval(id);
   }, []);
 
+  async function setStatus(id: string, status: string) {
+    setSavingId(id);
+    try {
+      const { data } = await http.patch<EFIR>(`/admin/efir/${id}`, { status });
+      setEfirs((list) => (list ? list.map((e) => (e._id === id ? { ...e, status: data.status } : e)) : list));
+      notify({ tone: "success", message: `Report marked as ${status.toLowerCase()}.` });
+    } catch (e: any) {
+      notify({ tone: "error", message: e?.response?.data?.error || "Couldn't update the report." });
+    } finally {
+      setSavingId(null);
+    }
+  }
+
+  const openReports = efirs ? efirs.filter((e) => e.status !== "Closed").length : null;
+  const recentSos = alerts ? alerts.filter((a) => Date.now() - new Date(a.createdAt).getTime() < DAY).length : null;
+  const sosPoints = useMemo(
+    () => (alerts || []).filter((a) => a.lat != null && a.lon != null) as (Alert & { lat: number; lon: number })[],
+    [alerts]
+  );
+
   return (
     <>
       <h1 className="page-title">Admin Dashboard</h1>
@@ -68,6 +118,42 @@ export default function AdminDashboard() {
         </span>
       </div>
       {error && <div className="mt-3 text-sm text-red-600" role="alert">{error}</div>}
+
+      <div className="mt-6 grid gap-4 grid-cols-2 md:grid-cols-4">
+        <Stat label="Open reports" value={openReports ?? "…"} tone={openReports ? "amber" : undefined} />
+        <Stat label="SOS in last 24 hours" value={recentSos ?? "…"} tone={recentSos ? "red" : undefined} />
+        <Stat label="All reports" value={efirs ? efirs.length : "…"} />
+        <Stat label="All SOS alerts" value={alerts ? alerts.length : "…"} />
+      </div>
+
+      <Card className="mt-6">
+        <CardHeader title="Where SOS alerts came from" />
+        <CardBody>
+          <div className="h-72 w-full overflow-hidden rounded-xl border">
+            <MapContainer center={[20.5937, 78.9629]} zoom={4} scrollWheelZoom={false} style={{ height: "100%", width: "100%" }}>
+              <TileLayer attribution="&copy; OpenStreetMap contributors" url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+              <FitAlerts points={sosPoints.map((a) => [a.lat, a.lon] as [number, number])} />
+              {sosPoints.map((a) => {
+                const recent = Date.now() - new Date(a.createdAt).getTime() < DAY;
+                return (
+                  <CircleMarker
+                    key={a._id}
+                    center={[a.lat, a.lon]}
+                    radius={recent ? 10 : 7}
+                    pathOptions={{ color: recent ? "#dc2626" : "#f97316", fillOpacity: 0.6 }}
+                  >
+                    <Popup>
+                      <div className="text-sm font-medium">{personLabel(a.userId)}</div>
+                      <div className="text-xs">{new Date(a.createdAt).toLocaleString()}</div>
+                    </Popup>
+                  </CircleMarker>
+                );
+              })}
+            </MapContainer>
+          </div>
+          <div className="mt-2 text-xs text-neutral-500">Red: last 24 hours. Orange: older.</div>
+        </CardBody>
+      </Card>
 
       <div className="grid gap-6 md:grid-cols-2 mt-6">
         <Card>
@@ -106,10 +192,27 @@ export default function AdminDashboard() {
                       {e.name || personLabel(e.user)}{" "}
                       {e.contact ? <span className="text-xs text-neutral-500">· {e.contact}</span> : null}
                     </div>
-                    <div className="text-xs text-neutral-500">
-                      {new Date(e.createdAt).toLocaleString()}{e.status ? ` · ${e.status}` : ""}
+                    <div className="mt-1 flex items-center gap-2 text-xs text-neutral-500">
+                      <StatusBadge status={e.status} />
+                      {new Date(e.createdAt).toLocaleString()}
                     </div>
                     <p className="mt-2 text-sm whitespace-pre-wrap">{e.summary}</p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {e.status !== "In progress" && e.status !== "Closed" && (
+                        <Button variant="outline" disabled={savingId === e._id} onClick={() => setStatus(e._id, "In progress")}>
+                          Mark in progress
+                        </Button>
+                      )}
+                      {e.status !== "Closed" ? (
+                        <Button variant="outline" disabled={savingId === e._id} onClick={() => setStatus(e._id, "Closed")}>
+                          Close
+                        </Button>
+                      ) : (
+                        <Button variant="outline" disabled={savingId === e._id} onClick={() => setStatus(e._id, "Pending")}>
+                          Reopen
+                        </Button>
+                      )}
+                    </div>
                   </li>
                 ))}
               </ul>

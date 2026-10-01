@@ -63,6 +63,7 @@ export async function checkPoint(req: Request, res: Response) {
       matchedZones: zones.map((z) => ({
         id: z._id,
         name: z.name,
+        description: z.description ?? "",
         riskLevel: z.riskLevel,
         riskScore: z.riskScore,
       })),

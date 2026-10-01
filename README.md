@@ -60,6 +60,8 @@ Notes:
 | POST | `/api/geo/check` | – | Which risk zone contains a point (`$geoIntersects`) |
 | POST | `/api/alerts/panic` | user | Record an SOS with coordinates |
 | GET | `/api/admin/alerts`, `/api/admin/efir` | admin | Admin dashboard data |
+| PATCH | `/api/admin/efir/:id` | admin | Set a report's status (Pending, In progress, Closed) |
+| GET | `/api/digital-id/verify/:token` | – | Check a trip ID QR code (shown on the `/verify/:token` page) |
 | * | `/api/reviews`, `/api/itinerary`, `/api/efir`, `/api/digital-id` | mixed | Reviews, itinerary, incident reports, QR trip ID |
 
 The SOS stores a geotagged alert that admins can see; it does not send SMS/e-mail notifications.

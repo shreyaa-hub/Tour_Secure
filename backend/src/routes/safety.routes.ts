@@ -1,6 +1,6 @@
 import { Router } from "express";
 import SafetyScore from "../models/SafetyScore";
-import { safetyOf } from "../utils/safety";
+import { safetyOf, breakdownOf } from "../utils/safety";
 import { looseNamePattern } from "../utils/search";
 
 const router = Router();
@@ -14,13 +14,7 @@ function toPoint(r: any) {
     lat: typeof lat === "number" ? lat : 0,
     lng: typeof lng === "number" ? lng : 0,
     safety_score: safetyOf(r),
-    _debug: {
-      crimeRate: r?.crimeRate ?? 50,
-      infraScore: r?.infraScore ?? 50,
-      sentiment: r?.sentiment ?? 0,
-      ratingCount: r?.ratingCount ?? 0,
-      reviewScore: r?.reviewScore ?? null,
-    },
+    breakdown: breakdownOf(r),
   };
 }
 
@@ -99,6 +93,7 @@ router.get("/search", async (req, res, next) => {
         lat: r?.loc?.coordinates?.[1] ?? 0,
         lng: r?.loc?.coordinates?.[0] ?? 0,
         safety_score: safetyOf(r),
+        breakdown: breakdownOf(r),
       }))
     );
   } catch (e) {

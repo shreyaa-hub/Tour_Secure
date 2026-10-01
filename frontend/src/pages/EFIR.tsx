@@ -10,6 +10,7 @@ import Badge from "@/components/ui/Badge";
 import { useToast } from "@/components/ui/Toast";
 import { MapPin } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import StatusBadge from "@/components/StatusBadge";
 
 type EFIRDoc = {
   _id: string;
@@ -315,9 +316,10 @@ export default function EFIR() {
                           <div className="text-xs text-neutral-500">Contact: {item.contact}</div>
                         ) : null}
                         <div className="text-xs text-neutral-500">
-                          {new Date(item.createdAt).toLocaleString()} • {item.status}
+                          {new Date(item.createdAt).toLocaleString()}
                         </div>
                       </div>
+                      <StatusBadge status={item.status} />
                     </div>
                     <p className="mt-3 text-sm text-neutral-800 whitespace-pre-wrap break-words">
                       {item.summary}

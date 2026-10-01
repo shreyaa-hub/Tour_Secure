@@ -9,7 +9,7 @@ export interface IEfir extends Document {
     lat?: number;
     lng?: number;
   };
-  status: "Pending" | "Submitted" | "Closed";
+  status: "Pending" | "In progress" | "Submitted" | "Closed";
   user: Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
@@ -30,7 +30,7 @@ const EfirSchema = new Schema<IEfir>(
     },
     status: {
       type: String,
-      enum: ["Pending", "Submitted", "Closed"],
+      enum: ["Pending", "In progress", "Submitted", "Closed"],
       default: "Pending",
     },
     user: { type: Schema.Types.ObjectId, ref: "User", required: true },

@@ -12,7 +12,8 @@ import fs from "fs";
 const r = Router();
 
 const JWT_SECRET = process.env.JWT_SECRET || "changeme";
-const SERVER_BASE_URL = process.env.SERVER_BASE_URL || "http://localhost:4000";
+// Where the web app runs: the QR code opens its /verify page
+const CLIENT_BASE_URL = (process.env.CLIENT_BASE_URL || "http://localhost:5173").replace(/\/+$/, "");
 const UPLOAD_DIR = process.env.FILE_STORAGE_DIR || path.join(process.cwd(), "secure_uploads");
 
 // ensure upload dir
@@ -47,7 +48,7 @@ function createQrToken(payload: { did: string; uid: string }, endAt: Date) {
   return jwt.sign(payload, JWT_SECRET, { expiresIn: secondsUntil(endAt) });
 }
 function buildVerifyUrl(token: string) {
-  return `${SERVER_BASE_URL}/api/digital-id/verify/${token}`;
+  return `${CLIENT_BASE_URL}/verify/${token}`;
 }
 async function normalizeStatuses(uid: string) {
   await DigitalId.updateMany(
@@ -145,7 +146,20 @@ r.get("/verify/:token", async (req, res) => {
       return res.status(410).json({ ok: false, valid: false, reason: "out_of_window" });
     }
 
-    return res.json({ ok: true, valid: true, digitalId: toClient(doc, false) });
+    const holder = await User.findById(doc.user).select({ name: 1 }).lean<{ name?: string }>();
+    // Public endpoint: return only what someone verifying the ID needs to see
+    return res.json({
+      ok: true,
+      valid: true,
+      holder: { name: holder?.name ?? null },
+      digitalId: {
+        status: doc.status,
+        entrypoint: doc.entrypoint ?? null,
+        docType: doc.docType ?? null,
+        startAt: doc.startAt,
+        endAt: doc.endAt,
+      },
+    });
   } catch {
     return res.status(401).json({ ok: false, valid: false, reason: "invalid_or_expired_token" });
   }

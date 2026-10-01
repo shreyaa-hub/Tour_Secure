@@ -26,6 +26,7 @@ import DigitalID from "@/pages/DigitalID";
 import About from "@/pages/About";
 import AuthPage from "@/pages/Auth";
 import AdminDashboard from "@/pages/AdminDashboard";
+import Verify from "@/pages/Verify";
 
 // Gate the app until session hydration completes
 function AuthReady({ children }: { children: React.ReactNode }) {
@@ -53,6 +54,7 @@ const router = createBrowserRouter([
       { path: "/heatmap", element: <Heatmap /> },
       { path: "/reviews", element: <Reviews /> },
       { path: "/about", element: <About /> },
+      { path: "/verify/:token", element: <Verify /> },
 
       // Private (user)
       { path: "/itinerary", element: <RequireAuth><Itinerary /></RequireAuth> },
