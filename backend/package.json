@@ -9,7 +9,8 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "seed:safety": "ts-node -r dotenv/config scripts/seedSafety.ts",
-    "seed:demo": "ts-node --transpile-only -r dotenv/config scripts/seedDemo.ts"
+    "seed:demo": "ts-node --transpile-only -r dotenv/config scripts/seedDemo.ts",
+    "seed:sample": "ts-node --transpile-only -r dotenv/config scripts/seedSample.ts"
   },
   "dependencies": {
     "bcryptjs": "^3.0.2",
