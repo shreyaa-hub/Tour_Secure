@@ -1,7 +1,12 @@
 // frontend/src/lib/api.ts
 // Single source of truth for the API base URL (must include the /api suffix).
+// Default: same host the page was opened on, port 4000. Using the same host matters:
+// the login cookie only travels if the page and API are on the same site
+// (localhost:5173 → localhost:4000 works; 127.0.0.1:5173 → localhost:4000 does not).
 export const API_BASE: string =
-  import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_URL || "http://localhost:4000/api";
+  import.meta.env.VITE_API_BASE ||
+  import.meta.env.VITE_API_URL ||
+  `${window.location.protocol}//${window.location.hostname}:4000/api`;
 // Back-compat for modules that import { API_URL }
 export const API_URL = API_BASE;
 

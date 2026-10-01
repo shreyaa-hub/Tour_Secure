@@ -1,12 +1,9 @@
 // frontend/src/lib/axios.ts
 import axios from "axios";
-
-const baseURL =
-  import.meta.env.VITE_SERVER_BASE_URL?.replace(/\/+$/, "") ||
-  "http://localhost:4000";
+import { API_BASE } from "@/lib/api";
 
 export const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE || "http://localhost:4000/api",
+  baseURL: API_BASE,
   withCredentials: true,
 });
 
