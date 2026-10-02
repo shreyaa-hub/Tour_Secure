@@ -33,7 +33,7 @@ cp .env.example .env          # set MONGO_URI and JWT_SECRET
 npm install
 npm run seed:safety           # 25 safety-score areas (North-East India)
 ADMIN_EMAIL=you@example.com ADMIN_PASSWORD='choose-a-password' npm run seed:demo   # risk zones, Chennai-region areas, admin user
-npm run seed:sample           # optional: sample reviews, e-FIRs and SOS alerts (see .env.example)
+npm run seed:sample           # sample reviews, e-FIRs, SOS alerts and a trip itinerary (see .env.example)
 npm run dev                   # http://localhost:4000/api/health
 
 # 2. Frontend (new terminal)

@@ -277,7 +277,7 @@ export default function Itinerary() {
                           <li key={it._id} className="relative">
                             {/* dot */}
                             <span
-                              className={`absolute left-3.5 top-3 -translate-x-1/2 w-3 h-3 rounded-full border ${isDone ? "bg-emerald-500 border-emerald-500" : "bg-white border-neutral-300"}`}
+                              className={`absolute left-[-23px] top-5 -translate-x-1/2 w-3 h-3 rounded-full border ${isDone ? "bg-emerald-500 border-emerald-500" : "bg-white border-neutral-300"}`}
                               aria-hidden
                             />
                             <div className="rounded-xl border p-4 bg-white">

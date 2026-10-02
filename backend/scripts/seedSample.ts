@@ -1,11 +1,12 @@
 // backend/scripts/seedSample.ts
 // Adds sample activity so every page has something to show: reviews (which also
-// update area safety scores), e-FIR reports and SOS alerts. All content is sample data.
+// update area safety scores), e-FIR reports, SOS alerts and a trip itinerary.
+// All content is sample data.
 //
 // Usage (after seed:safety and seed:demo):
 //   npm run seed:sample
 //
-// e-FIRs and SOS alerts belong to SAMPLE_USER_EMAIL (set it in .env to your own
+// e-FIRs, SOS alerts and itinerary stops belong to SAMPLE_USER_EMAIL (set it in .env to your own
 // account so they appear under "Your reports"). Reviews come from that user plus a
 // few sample travellers. Safe to re-run: records that already exist are skipped.
 import "dotenv/config";
@@ -16,6 +17,7 @@ import User from "../src/models/User";
 import Review from "../src/models/Review";
 import Efir from "../src/models/efir.model";
 import Alert from "../src/models/Alert";
+import Itinerary from "../src/models/itinerary.model";
 import SafetyScore from "../src/models/SafetyScore";
 import { recomputeAreaFromReviews } from "../src/services/reviews.service";
 import { looseNamePattern } from "../src/utils/search";
@@ -64,6 +66,16 @@ const efirs = [
     location: { lat: 13.05, lng: 80.2824 }, status: "Closed", days: 14,
   },
 ] as const;
+
+// A 4-day Chennai trip starting tomorrow (day = days from today)
+const itinerary = [
+  { day: 1, title: "Arrive at Chennai Central", location: "Chennai Central", notes: "Use the prepaid auto counter outside the station." },
+  { day: 1, title: "Shopping at T. Nagar", location: "T. Nagar", notes: "Go before 6 pm, it gets very crowded after." },
+  { day: 2, title: "Kapaleeshwarar Temple", location: "Mylapore", notes: "Dress code: shoulders and knees covered." },
+  { day: 2, title: "Evening at Marina Beach", location: "Marina Beach", notes: "Leave before 9 pm, some stretches are poorly lit." },
+  { day: 3, title: "Day trip to Mahabalipuram", location: "Mahabalipuram", notes: "Shore Temple and Five Rathas. Book a cab for the return." },
+  { day: 4, title: "Theosophical Society and Elliot's Beach", location: "Adyar", notes: "" },
+];
 
 const alerts = [
   { lat: 13.0835, lon: 80.2749, source: "gps", days: 1 },
@@ -157,6 +169,16 @@ async function main() {
     added++;
   }
   console.log(`SOS alerts: added ${added} (${alerts.length - added} already existed) for ${meEmail}`);
+
+  // Itinerary
+  added = 0;
+  for (const it of itinerary) {
+    if (await Itinerary.exists({ user: me.user._id, title: it.title })) continue;
+    const date = new Date(Date.now() + it.day * DAY).toISOString().slice(0, 10);
+    await Itinerary.create({ user: me.user._id, title: it.title, date, location: it.location, notes: it.notes || undefined });
+    added++;
+  }
+  console.log(`Itinerary stops: added ${added} (${itinerary.length - added} already existed) for ${meEmail}`);
 
   await mongoose.disconnect();
 }
